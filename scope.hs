@@ -1,16 +1,10 @@
 {-# LANGUAGE GADTs, Rank2Types #-}
 
-module Scope (Env, Scope, emptyEnv,
-              Decl, Refn, decl, refn, bind, find,
+module Scope (Decl, Refn, decl, refn, bind, find,
               FreshDecl (FreshDecl),
-              Merged, merge, Scoped,
-              
-              emptyScope,
-              
-              clearEnv,
-              
-              leftEnv, rightEnv, makeLeftEnv, makeRightEnv,
-              
+              Split, Merged, merge,
+              Env, emptyEnv, clearEnv, splitEnv, joinEnv,
+              Scope, Scoped, emptyScope,
               unhygienicDeclName, unhygienicRefnName) where
 
 import qualified Data.Map as Map
@@ -24,10 +18,10 @@ type Name = String
 type Id = Unique
 
 data Decl a b = Decl Name Id
-data Refn a = Refn Name
+data Refn a = Refn Name Id
 
 data Expt a = Expt Name Id
-data Impt a = Impt Name
+data Impt a = Impt Name Id
 
 data FreshDecl = forall b. FreshDecl (forall a. Scoped a b (Decl a b))
 
@@ -44,16 +38,16 @@ mkDecl name id = FreshDecl $ \(Scope s) ->
 refn :: String -> Scope a -> Either BindError (Refn a)
 refn name (Scope scope) =
   case lookup name scope of
-    Nothing       -> Left  (UnboundError name)
-    Just Nothing  -> Left  (AmbiguousError name)
-    Just (Just _) -> Right (Refn name)
+    Nothing        -> Left  (UnboundError name)
+    Just Nothing   -> Left  (AmbiguousError name)
+    Just (Just id) -> Right (Refn name id)
 
 bind :: Decl a b -> v -> Env v a -> Env v b
-bind (Decl name _) v (Env env) =
-  Env (Map.insert name v env)
+bind (Decl name id) v (Env env) =
+  Env (Map.insert (name, id) v env)
 
 find :: Refn a -> Env v a -> v
-find (Refn name) (Env env) = (Map.!) env name
+find (Refn name id) (Env env) = (Map.!) env (name, id)
 
 
 {- Scope -}
@@ -86,14 +80,16 @@ instance Environment (Env v) where
 {- Environments -}
 -- TODO: Make hygienic
 
-data Env v a where
-  Env :: Map Name v -> Env v a
-  LeftEnv  :: Env v a -> Env v (Either a b)
-  RightEnv :: Env v b -> Env v (Either a b)
-
---splitEnv :: Env v (Either a b) -> (Env v a, Env v b)
+newtype Env v a = Env (Map (Name, Id) v)
 
 data Split a b
+
+splitEnv :: Env v (Split a b) -> (Env v a, Env v b)
+splitEnv (Env env) = (Env env, Env env)
+
+joinEnv :: Env v a -> Env v b -> Env v (Split a b)
+-- (guaranteed to be a disjoint union)
+joinEnv (Env env1) (Env env2) = Env (Map.union env1 env2)
 
 emptyEnv :: Env v ()
 emptyEnv = Env (Map.empty)
@@ -101,23 +97,11 @@ emptyEnv = Env (Map.empty)
 clearEnv :: Env v a -> Env v ()
 clearEnv (Env env) = Env env
 
-leftEnv :: Env v (Either a b) -> Env v a
-leftEnv (LeftEnv env) = env
-
-rightEnv :: Env v (Either a b) -> Env v b
-rightEnv (RightEnv env) = env
-
-makeLeftEnv :: Env v a -> Env v (Either a b)
-makeLeftEnv = LeftEnv
-
-makeRightEnv :: Env v b -> Env v (Either a b)
-makeRightEnv = RightEnv
-
 
 {- Unhygienic Operations -}
 
 unhygienicDeclName (Decl name _) = name
-unhygienicRefnName (Refn name)   = name
+unhygienicRefnName (Refn name _) = name
 
 
 {- Binding Errors -}

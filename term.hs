@@ -3,8 +3,6 @@
 module Term where
 
 import qualified Scope as S
-import Control.Monad.State (State)
-import Control.Monad (liftM)
 
 
 data Term a b where
@@ -13,12 +11,17 @@ data Term a b where
   
   Closed :: Term () () -> Term a a
 
-  RightT :: Term b c -> Term (Either a b) (Either a c)
-  LeftT  :: Term a b -> Term (Either a c) (Either b c)
+  RightT :: Term b c -> Term (S.Split a b) (S.Split a c)
+  LeftT  :: Term a b -> Term (S.Split a c) (S.Split b c)
 
-  Appl :: Term a a -> Term a a -> Term a a
-  Lamb :: Term a b -> Term b c -> Term a a
+  Apply :: Term a a -> Term a a -> Term a a
+  Lambda :: Term a b -> Term b b -> Term a a
   Param :: Term a b -> Term a c -> Term a (S.Merged b c)
+  If :: Term a a -> Term a a -> Term a a -> Term a a
+
+  {- Sugar -}
+  Let :: Term a b -> Term a a -> Term b b -> Term a a
+  Or :: Term a b -> Term a b -> Term a b
 
 type STerm a b = S.Scoped a b (Term a b)
 
@@ -50,14 +53,31 @@ appl :: STerm a a -> STerm a a -> STerm a a
 appl ab ac sa =
   let (b, _) = ab sa
       (c, _) = ac sa in
-  (Appl b c, sa)
+  (Apply b c, sa)
 
-lamb :: STerm a b -> STerm b c -> STerm a a
+lamb :: STerm a b -> STerm b b -> STerm a a
 lamb ab bc sa =
   let (b, sb) = ab sa
       (c, _) = bc sb in
-  (Lamb b c, sa)
+  (Lambda b c, sa)
 
+tlet :: STerm a b -> STerm a a -> STerm b b -> STerm a a
+tlet x a b s =
+  let (x', s') = x s
+      (a', _)  = a s
+      (b', _)  = b s' in
+  (Let x' a' b', s)
+
+tor :: STerm a a -> STerm a a -> STerm a a
+tor a b s =
+  let (a', _) = a s
+      (b', _) = b s in
+  (Or a' b', s)
+
+tif :: STerm a a -> STerm a a -> STerm a a -> STerm a a
+tif a b c s =
+  let ((a', _), (b', _), (c', _)) = (a s, b s, c s) in
+  (If a' b' c', s)
 
 subs :: S.Env (Maybe (Term () ())) a -> Term a b
                -> (Term a b, S.Env (Maybe (Term () ())) b)
@@ -70,20 +90,22 @@ subs env (Refn r) =
 subs env (Closed t) =
   let (t', env') = subs (S.clearEnv env) t in
   (Closed t', env)
-subs env (Lamb a b) =
+subs env (Lambda a b) =
   let (a', env') = subs env  a
       (b', _)    = subs env' b in
-  (Lamb a' b', env)
-subs env (Appl a b) =
+  (Lambda a' b', env)
+subs env (Apply a b) =
   let (a', env') = subs env a
       (b', _) = subs env' b in
-  (Appl a' b', env)
+  (Apply a' b', env)
 subs env (RightT b) =
-  let (b', env') = subs (S.rightEnv env) b in
-  (RightT b', S.makeRightEnv env')
+  let (envL, envR) = S.splitEnv env
+      (b', envR') = subs envR b in
+  (RightT b', S.joinEnv envL envR')
 subs env (LeftT a) =
-  let (a', env') = subs (S.leftEnv env) a in
-  (LeftT a', S.makeLeftEnv env')
+  let (envL, envR) = S.splitEnv env
+      (a', envL') = subs envL a in
+  (LeftT a', S.joinEnv envL' envR)
 
 
 unhygienicShowTerm :: Term a b -> String
@@ -94,6 +116,6 @@ unhygienicShowTerm t =
     Decl d   -> S.unhygienicDeclName d
     Refn r   -> S.unhygienicRefnName r
     Param a b -> sh a ++ " " ++ sh b
-    Appl a b -> "(" ++ sh a ++ " " ++ sh b ++ ")"
-    Lamb a b -> "(lam " ++ sh a ++ ". " ++ sh b ++ ")"
+    Apply a b -> "(" ++ sh a ++ " " ++ sh b ++ ")"
+    Lambda a b -> "(lam " ++ sh a ++ ". " ++ sh b ++ ")"
     Closed t -> sh t
