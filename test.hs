@@ -1,26 +1,36 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs, Rank2Types, ScopedTypeVariables, ImpredicativeTypes #-}
 
 import Term
-import Scope (bind, emptyEnv, runScoped)
+import Scope (bind, emptyEnv, Scope)
 
-t_omega = fst $ runScoped $ do
-  FreshTerm x <- newDecl "x"
-  return $ lamb x (appl (refn "x") (refn "x"))
+t_omega :: IO (Term () ())
+t_omega = do
+  FreshDecl x <- decl "x"
+  makeTerm $
+    lamb x (appl (refn "x") (refn "x"))
 
-t_open = fst $ runScoped $ return (refn "x") -- error
+t_open :: IO (Term () ())
+t_open = makeTerm $ (refn "x") -- error
 
-t_apply = fst $ runScoped $ do
-  FreshTerm x <- newDecl "x"
-  FreshTerm y <- newDecl "y"
-  FreshTerm z <- newDecl "z"
-  return $ lamb x (lamb (param y z) (appl (refn "x") (refn "y")))
-
+t_apply :: IO (Term () ())
+t_apply = do
+  FreshDecl dx <- decl "x"
+  FreshDecl dy <- decl "y"
+  FreshDecl dz <- decl "z"
+  makeTerm $
+    lamb dx
+         (lamb (param dy dz)
+               (appl (refn "x") (refn "y")))
 
 main = do
+  t_omega <- t_omega
+  t_apply <- t_apply
+--  t_open <- t_open
   putStrLn $ unhygienicShowTerm t_omega
   putStrLn $ unhygienicShowTerm t_apply
   case t_omega of
     Lamb (Decl d) b ->
       -- cannot put `t_open` or `b` inside `CTerm`.
-      let env = bind d (Just (CTerm t_omega)) emptyEnv in
+      let env = bind d (Just t_apply) emptyEnv in do
       putStrLn $ unhygienicShowTerm $ fst $ subs env b
+  putStrLn "ok"

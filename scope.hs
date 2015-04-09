@@ -1,21 +1,27 @@
 {-# LANGUAGE GADTs, Rank2Types #-}
 
-module Scope (Env, Scope, merge, emptyEnv,
+module Scope (Env, Scope, emptyEnv,
               Decl, Refn, decl, refn, bind, find,
-              FreshDecl (FreshDecl), runScoped,
+              FreshDecl (FreshDecl),
+              Merged, merge, Scoped,
               
-              Merged,
+              emptyScope,
+              
+              clearEnv,
+              
               leftEnv, rightEnv, makeLeftEnv, makeRightEnv,
               
               unhygienicDeclName, unhygienicRefnName) where
 
-import Data.Map as Map
+import qualified Data.Map as Map
 import Data.Map (Map)
-import Control.Monad.State (State, get, put, evalState)
+import qualified Data.Set as Set
+import Data.Set (Set)
+import Data.Unique
 
 
 type Name = String
-type Id = Int
+type Id = Unique
 
 data Decl a b = Decl Name Id
 data Refn a = Refn Name
@@ -23,38 +29,24 @@ data Refn a = Refn Name
 data Expt a = Expt Name Id
 data Impt a = Impt Name
 
-newtype Scope a = Scope (Map Name (Maybe Id))
-
-data BindError = UnboundError String
-               | AmbiguousError String
-
-instance Show BindError where
-  show (UnboundError name)   = "Unbound identifier: " ++ name
-  show (AmbiguousError name) = "Ambiguously bound identifier: " ++ name
-
-data FreshDecl a =
-  FreshDecl (forall b. Scope a -> forall b. (Decl a b, Scope b))
-
---data FreshDecl a =
---  forall b. FreshDecl (Scope a -> (Decl a b, Scope b))
+data FreshDecl = forall b. FreshDecl (forall a. Scoped a b (Decl a b))
 
 
-runScoped :: State Id (Scope a -> t) -> t
-runScoped scoped = (evalState scoped 0) (Scope Map.empty)
-
-decl :: String -> State Int (FreshDecl a)
+decl :: String -> IO FreshDecl
 decl name = do
-  id <- get
-  put (id + 1)
-  return $ FreshDecl $ \(Scope s) ->
-    (Decl name id, Scope (Map.insert name (Just id) s))
+  id <- newUnique
+  return $ mkDecl name id
+
+mkDecl :: String -> Id -> FreshDecl
+mkDecl name id = FreshDecl $ \(Scope s) ->
+  (Decl name id, Scope ((name, Just id) : s))
 
 refn :: String -> Scope a -> Either BindError (Refn a)
 refn name (Scope scope) =
-  case Map.lookup name scope of
-    Nothing        -> Left  (UnboundError name)
-    Just Nothing   -> Left  (AmbiguousError name)
-    Just (Just id) -> Right (Refn name)
+  case lookup name scope of
+    Nothing       -> Left  (UnboundError name)
+    Just Nothing  -> Left  (AmbiguousError name)
+    Just (Just _) -> Right (Refn name)
 
 bind :: Decl a b -> v -> Env v a -> Env v b
 bind (Decl name _) v (Env env) =
@@ -63,23 +55,35 @@ bind (Decl name _) v (Env env) =
 find :: Refn a -> Env v a -> v
 find (Refn name) (Env env) = (Map.!) env name
 
-data Merged a b
+
+{- Scope -}
+
+newtype Scope a = Scope [(Name, Maybe Id)] -- nothing if binding is ambig
+type Scoped a b t = Scope a -> (t, Scope b)
+
+emptyScope :: Scope ()
+emptyScope = Scope []
 
 class Environment e where
   merge :: e a -> e b -> e (Merged a b)
 
+instance Environment Scope where
+  merge (Scope scope1) (Scope scope2) =
+    let (suffix, diff1, diff2) = commonSuffix scope1 scope2 in
+    let add (name, Nothing) = (name, Nothing)
+        add (name, Just id) =
+          case lookup name diff2 of
+            Nothing -> (name, Just id)
+            Just _  -> (name, Nothing) in
+    Scope $ (map add diff1) ++ diff2 ++ suffix
+
+data Merged a b
+
 instance Environment (Env v) where
   merge (Env env1) (Env env2) = Env (Map.union env1 env2)
 
-instance Environment Scope where
-  merge (Scope scope1) (Scope scope2) =
-    let joinBinds Nothing _ = Nothing
-        joinBinds _ Nothing = Nothing
-        joinBinds (Just id1) (Just id2) | id1 == id2 = Just id1
-        joinBinds (Just id1) (Just id2) = Nothing in
-    Scope (Map.unionWith joinBinds scope1 scope2)
 
-
+{- Environments -}
 -- TODO: Make hygienic
 
 data Env v a where
@@ -87,10 +91,15 @@ data Env v a where
   LeftEnv  :: Env v a -> Env v (Either a b)
   RightEnv :: Env v b -> Env v (Either a b)
 
-emptyEnv :: Env v ()
-emptyEnv = Env Map.empty
-
 --splitEnv :: Env v (Either a b) -> (Env v a, Env v b)
+
+data Split a b
+
+emptyEnv :: Env v ()
+emptyEnv = Env (Map.empty)
+
+clearEnv :: Env v a -> Env v ()
+clearEnv (Env env) = Env env
 
 leftEnv :: Env v (Either a b) -> Env v a
 leftEnv (LeftEnv env) = env
@@ -98,25 +107,40 @@ leftEnv (LeftEnv env) = env
 rightEnv :: Env v (Either a b) -> Env v b
 rightEnv (RightEnv env) = env
 
---leftEnv :: Env v a -> Env v (Either a b)
---makeLeftEnv = LeftEnv
-
 makeLeftEnv :: Env v a -> Env v (Either a b)
 makeLeftEnv = LeftEnv
 
 makeRightEnv :: Env v b -> Env v (Either a b)
 makeRightEnv = RightEnv
 
+
 {- Unhygienic Operations -}
 
 unhygienicDeclName (Decl name _) = name
-unhygienicRefnName (Refn name) = name
+unhygienicRefnName (Refn name)   = name
 
 
-{- Is forall magic necessary for guarantees? -}
+{- Binding Errors -}
 
---withEmptyEnv :: (forall a. Env v a -> t) -> t
---withEmptyEnv f = f (Env Map.empty)
+data BindError = UnboundError String
+               | AmbiguousError String
 
---withEmptyScope :: (forall a. Scope a -> t) -> t
---withEmptyScope f = f (Scope Map.empty)
+instance Show BindError where
+  show (UnboundError name)   = "Unbound identifier: " ++ name
+  show (AmbiguousError name) = "Ambiguously bound identifier: " ++ name
+
+
+{- Utility -}
+
+commonPrefix :: Eq a => [a] -> [a] -> ([a], [a], [a])
+commonPrefix (x:xs) (y:ys) =
+  if x == y
+  then let (zs, xs', ys') = commonSuffix xs ys in
+  (x:zs, xs', ys')
+  else ([], x:xs, y:ys)
+commonPrefix xs ys = ([], xs, ys)
+
+commonSuffix :: Eq a => [a] -> [a] -> ([a], [a], [a])
+commonSuffix xs ys =
+  let (a, b, c) = commonPrefix (reverse xs) (reverse ys) in
+  (reverse a, reverse b, reverse c)

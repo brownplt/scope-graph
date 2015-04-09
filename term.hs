@@ -2,13 +2,16 @@
 
 module Term where
 
-import Control.Monad.State (State, evalState)
 import qualified Scope as S
+import Control.Monad.State (State)
+import Control.Monad (liftM)
 
 
 data Term a b where
   Decl :: S.Decl a b -> Term a b
   Refn :: S.Refn a   -> Term a a
+  
+  Closed :: Term () () -> Term a a
 
   RightT :: Term b c -> Term (Either a b) (Either a c)
   LeftT  :: Term a b -> Term (Either a c) (Either b c)
@@ -17,53 +20,56 @@ data Term a b where
   Lamb :: Term a b -> Term b c -> Term a a
   Param :: Term a b -> Term a c -> Term a (S.Merged b c)
 
-type PTerm a b = S.Scope a -> (Term a b, S.Scope b)
-data FreshTerm a = forall b. FreshTerm (PTerm a b)
+type STerm a b = S.Scoped a b (Term a b)
 
---makeTerm :: State Int (S.Scope a -> PTerm a b) -> Term a b
---makeTerm f = fst $ S.runScoped (\s -> f s)
+data FreshDecl = forall b. FreshDecl (forall a. STerm a b)
 
-newDecl :: String -> State Int (FreshTerm a)
-newDecl name = do
+
+makeTerm :: (S.Scope () -> (Term () b, S.Scope b)) -> IO (Term () b)
+makeTerm t = return (fst (t S.emptyScope))
+
+decl :: String -> IO FreshDecl
+decl name = do
   S.FreshDecl f <- S.decl name
-  return $ FreshTerm $ \s ->
-    let (d, s') = f s in
-    (Decl d, s')
+  return $ FreshDecl $ \s -> let (d, s') = f s in (Decl d, s')
 
-refn :: String -> PTerm a a
+refn :: String -> forall a. STerm a a
 refn name s =
   let t = case S.refn name s of
         Right r  -> Refn r
         Left err -> error $ show err in
   (t, s)
 
-param :: PTerm a b -> PTerm a c -> PTerm a (S.Merged b c)
+param :: STerm a b -> STerm a c -> STerm a (S.Merged b c)
 param ab ac s =
   let (b, sb) = ab s
       (c, sc) = ac s in
   (Param b c, S.merge sb sc)
 
-appl :: PTerm a a -> PTerm a a -> PTerm a a
+appl :: STerm a a -> STerm a a -> STerm a a
 appl ab ac sa =
   let (b, _) = ab sa
       (c, _) = ac sa in
   (Appl b c, sa)
 
-lamb :: PTerm a b -> PTerm b c -> PTerm a a
+lamb :: STerm a b -> STerm b c -> STerm a a
 lamb ab bc sa =
   let (b, sb) = ab sa
       (c, _) = bc sb in
   (Lamb b c, sa)
 
-newtype CTerm = CTerm (forall a. Term a a)
 
-subs :: S.Env (Maybe CTerm) a -> Term a b -> (Term a b, S.Env (Maybe CTerm) b)
+subs :: S.Env (Maybe (Term () ())) a -> Term a b
+               -> (Term a b, S.Env (Maybe (Term () ())) b)
 subs env (Decl d) = (Decl d, S.bind d Nothing env)
 subs env (Refn r) =
   let t = case S.find r env of
-        Nothing        -> Refn r
-        Just (CTerm t) -> t in
+        Nothing -> Refn r
+        Just t  -> Closed t in
   (t, env)
+subs env (Closed t) =
+  let (t', env') = subs (S.clearEnv env) t in
+  (Closed t', env)
 subs env (Lamb a b) =
   let (a', env') = subs env  a
       (b', _)    = subs env' b in
@@ -79,6 +85,7 @@ subs env (LeftT a) =
   let (a', env') = subs (S.leftEnv env) a in
   (LeftT a', S.makeLeftEnv env')
 
+
 unhygienicShowTerm :: Term a b -> String
 unhygienicShowTerm t =
   let sh :: Term a b -> String
@@ -89,3 +96,4 @@ unhygienicShowTerm t =
     Param a b -> sh a ++ " " ++ sh b
     Appl a b -> "(" ++ sh a ++ " " ++ sh b ++ ")"
     Lamb a b -> "(lam " ++ sh a ++ ". " ++ sh b ++ ")"
+    Closed t -> sh t
