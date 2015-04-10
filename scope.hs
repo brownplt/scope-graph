@@ -1,9 +1,10 @@
 {-# LANGUAGE GADTs, Rank2Types #-}
 
 module Scope (Decl, Refn, decl, refn, bind, find,
+              scope,
               FreshDecl (FreshDecl),
-              Split, Merged, merge,
-              Env, emptyEnv, clearEnv, splitEnv, joinEnv,
+              Join, Union, union,
+              Env, EmptyEnv, emptyEnv, clearEnv, splitEnv, joinEnv,
               Scope, Scoped, emptyScope,
               unhygienicDeclName, unhygienicRefnName) where
 
@@ -49,20 +50,24 @@ bind (Decl name id) v (Env env) =
 find :: Refn a -> Env v a -> v
 find (Refn name id) (Env env) = (Map.!) env (name, id)
 
+scope :: Decl a b -> Scope a -> Scope b
+scope _ (Scope scope) = Scope scope
+
 
 {- Scope -}
 
 newtype Scope a = Scope [(Name, Maybe Id)] -- nothing if binding is ambig
 type Scoped a b t = Scope a -> (t, Scope b)
 
+-- ??
 emptyScope :: Scope ()
 emptyScope = Scope []
 
 class Environment e where
-  merge :: e a -> e b -> e (Merged a b)
+  union :: e a -> e b -> e (Union a b)
 
 instance Environment Scope where
-  merge (Scope scope1) (Scope scope2) =
+  union (Scope scope1) (Scope scope2) =
     let (suffix, diff1, diff2) = commonSuffix scope1 scope2 in
     let add (name, Nothing) = (name, Nothing)
         add (name, Just id) =
@@ -71,10 +76,10 @@ instance Environment Scope where
             Just _  -> (name, Nothing) in
     Scope $ (map add diff1) ++ diff2 ++ suffix
 
-data Merged a b
+data Union a b
 
 instance Environment (Env v) where
-  merge (Env env1) (Env env2) = Env (Map.union env1 env2)
+  union (Env env1) (Env env2) = Env (Map.union env1 env2)
 
 
 {- Environments -}
@@ -82,16 +87,22 @@ instance Environment (Env v) where
 
 newtype Env v a = Env (Map (Name, Id) v)
 
-data Split a b
+data Join a b
 
-splitEnv :: Env v (Split a b) -> (Env v a, Env v b)
+splitEnv :: Env v (Join a b) -> (Env v a, Env v b)
 splitEnv (Env env) = (Env env, Env env)
 
-joinEnv :: Env v a -> Env v b -> Env v (Split a b)
+joinEnv :: Env v a -> Env v b -> Env v (Join a b)
 -- (guaranteed to be a disjoint union)
 joinEnv (Env env1) (Env env2) = Env (Map.union env1 env2)
 
-emptyEnv :: Env v ()
+class EmptyEnv e
+
+instance EmptyEnv ()
+
+instance (EmptyEnv a, EmptyEnv b) => EmptyEnv (Join a b)
+
+emptyEnv :: EmptyEnv e => Env v e
 emptyEnv = Env (Map.empty)
 
 clearEnv :: Env v a -> Env v ()
