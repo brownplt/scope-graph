@@ -14,7 +14,7 @@ data Term a b where
   Closed  :: Term () () -> Term a a
   RightT  :: Term b c -> Term (S.Join a b) (S.Join a c)
   LeftT   :: Term a b -> Term (S.Join a c) (S.Join b c)
-  WrapCtx :: Term (S.Join () a) (S.Join () b) -> Term a b
+  WrapCtx :: Term (S.Join () a) (S.Join c b) -> Term a b
 
   {- Core Language -}
   Apply  :: Term a a -> Term a a -> Term a a
@@ -67,24 +67,32 @@ unionScope (Scope a) (Scope b) = Scope (S.union a b)
 makeTerm :: Scoped () b (Term a b) -> IO (Term a b)
 makeTerm t = return $ fst $ t $ Scope S.emptyScope
 
---makeContext :: Scoped (S.Join () ()) b (Term a b) -> IO (Term a b)
-makeContext t =
-  return $ WrapCtx $ fst $ t $ Join (Scope S.emptyScope) (Scope S.emptyScope)
-
 makeScopedTerm :: Scoped () b (Term a b) -> IO (Term a b, Scope b)
 makeScopedTerm t = return $ t $ Scope S.emptyScope
 
-tleft :: (STerm a b) -> STerm (S.Join a c) (S.Join b c)
-tleft t ac =
+type Ctx a b p q =
+  Scope a -> (Term (S.Join a p) (S.Join b q), Scope b)
+
+tleft :: STerm a b -> Ctx a b p p
+tleft t a =
+  let (t', b) = t a in
+  (LeftT t', b)
+--tleft :: (STerm a b) -> STerm (S.Join a c) (S.Join b c)
+{- tleft t ac =
   let (a, c)  = splitScope ac
       (t', b) = t a in
-  (LeftT t', joinScope b c)
+  (LeftT t', joinScope b c) -}
 
-tright :: (STerm a b) -> STerm (S.Join c a) (S.Join c b)
-tright t ca =
+tright :: Term p q -> Ctx a a p q
+tright t a = (RightT t, a)
+--tright :: (STerm a b) -> STerm (S.Join c a) (S.Join c b)
+{-tright t ca =
   let (c, a)  = splitScope ca
       (t', b) = t a in
-  (RightT t', joinScope c b)
+  (RightT t', joinScope c b) -}
+
+makeContext:: Ctx () b p q -> IO (Term p q)
+makeContext t = return $ WrapCtx $ fst $ t (Scope S.emptyScope)
 
 
 decl :: String -> IO Fresh
@@ -99,38 +107,38 @@ refn name (Scope s) =
         Left err -> error $ show err in
   (t, Scope s)
 
-param :: STerm a b -> STerm a c -> STerm a (S.Union b c)
+--param :: STerm a b -> STerm a c -> STerm a (S.Union b c)
 param ab ac s =
   let (b, sb) = ab s
       (c, sc) = ac s in
   (Param b c, unionScope sb sc)
 
-appl :: STerm a a -> STerm a a -> STerm a a
+--appl :: STerm a a -> STerm a a -> STerm a a
 appl ab ac sa =
   let (b, _) = ab sa
       (c, _) = ac sa in
   (Apply b c, sa)
 
-lamb :: STerm a b -> STerm b b -> STerm a a
+--lamb :: STerm a b -> STerm b b -> STerm a a
 lamb ab bc sa =
   let (b, sb) = ab sa
       (c, _) = bc sb in
   (Lambda b c, sa)
 
-tlet :: STerm a b -> STerm a a -> STerm b b -> STerm a a
+--tlet :: STerm a b -> STerm a a -> STerm b b -> STerm a a
 tlet x a b s =
   let (x', s') = x s
       (a', _)  = a s
       (b', _)  = b s' in
   (Let x' a' b', s)
 
-tor :: STerm a a -> STerm a a -> STerm a a
+--tor :: STerm a a -> STerm a a -> STerm a a
 tor a b s =
   let (a', _) = a s
       (b', _) = b s in
   (Or a' b', s)
 
-tif :: STerm a a -> STerm a a -> STerm a a -> STerm a a
+--tif :: STerm a a -> STerm a a -> STerm a a -> STerm a a
 tif a b c s =
   let ((a', _), (b', _), (c', _)) = (a s, b s, c s) in
   (If a' b' c', s)

@@ -45,43 +45,12 @@ t_or = do
   makeTerm $
     lamb dx (tor rx rx)
 
-foo :: Term a b -> Term c d -> Term (Join a c) (Join b d)
-foo (Lambda x bx) (Lambda y by) =
-  Lambda (LeftT x) (Lambda (RightT y) (LeftT bx))
-
-desugar_or_helper :: Term a a -> Term b c -> Term (Join a b) (Join a c)
-desugar_or_helper (Or p q) (Let dx _ (If rx _ _)) =
-  Let (RightT dx) (LeftT p) (If (RightT rx) (RightT rx) (LeftT q))
-
-or_pattern :: IO (Term () ())
-or_pattern = do
-  Fresh dx <- decl "x"
-  let rx = refn "x"
-  makeTerm $ lamb dx rx
-
-hole :: Term a b -> STerm (Join c a) (Join c b)
-hole t = tright (\a -> (t, scope t a))
-
-ctx :: STerm a b -> STerm (Join a c) (Join b c)
-ctx = tleft
-
-{-
---desugar_or :: Term a b -> IO (Term (Join a ()) (Join b ()))
-desugar_or :: Term a b -> IO (Term a b)
-desugar_or (Or p q) = do
-  Fresh dx <- decl "x"
-  let   rx =  refn "x"
-  return $ WrapCtx $ fst $ hole p $
-    (Join (Scope emptyScope) (Scope emptyScope))
---  makeContext $ hole p
---    tlet (ctx dx) (hole p)
---      (tif (ctx (refn "x")) (ctx (refn "x")) (hole q))
---desugar_or t = return t
--}
-
 desugar_let :: Term a b -> Term a b
 desugar_let (Let x a b) = Apply (Lambda x b) a
 --desugar_let (Let x a b) = Apply (Lambda x a) b -- error!
+
+hole = tright
+term = tleft
 
 desugar :: Term a b -> IO (Term a b)
 desugar (Decl x)     = return $ Decl x
@@ -96,21 +65,13 @@ desugar (If a b c)   = liftM3 If     (desugar a) (desugar b) (desugar c)
 desugar (Let x a b)  =
   liftM2 Apply (liftM2 Lambda (desugar x) (desugar b)) (desugar a)
 desugar (Or a b) = do
-  Fresh dx <- decl "x"
-  let rx = refn "x"
-  t <- makeTerm $ lamb dx rx
-  case t of
-    Lambda dx rx -> return $ WrapCtx $
-      Let (LeftT dx) (RightT a)
-        (If (LeftT rx) (LeftT rx) (RightT b))
-
-{-desugar (Or a b)     = do
+  a <- desugar a
+  b <- desugar b
   Fresh dx <- decl "x"
   let   rx =  refn "x"
-  return $ hole a
   makeContext $
-    tlet (ctx dx) (hole a)
-      (tif (ctx (refn "x")) (ctx (refn "x")) (hole b))-}
+    tlet (term dx) (hole a)
+      (tif (term rx) (term rx) (hole b))
 
 
 showTerm = putStrLn . unhygienicShowTerm
@@ -124,7 +85,6 @@ main = do
 --  t_open <- t_open
   showTerm t_omega
   showTerm t_apply
-  showTerm (foo t_id t_id)
   (case t_omega of
     Lambda (Decl d) b ->
       -- cannot put `t_open` or `b` inside `CTerm`.
