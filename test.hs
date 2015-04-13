@@ -18,6 +18,9 @@ t_omega = do
 t_open :: IO (Term () ())
 t_open = makeTerm $ (refn "x") -- error
 
+self_apply :: Term () () -> Term () ()
+self_apply t = Apply t t
+
 t_apply :: IO (Term () ())
 t_apply = do
   Fresh dx <- decl "x"
@@ -50,13 +53,14 @@ desugar_let (Let x a b) = Apply (Lambda x b) a
 desugar :: Term a b -> IO (Term a b)
 desugar (Decl x)     = return $ Decl x
 desugar (Refn x)     = return $ Refn x
-desugar (Closed t)   = liftM  Closed (desugar t)
-desugar (RightT t)   = liftM  RightT (desugar t)
-desugar (LeftT t )   = liftM  LeftT  (desugar t)
-desugar (Apply a b)  = liftM2 Apply  (desugar a) (desugar b)
-desugar (Lambda x b) = liftM2 Lambda (desugar x) (desugar b)
-desugar (Param a b)  = liftM2 Param  (desugar a) (desugar b)
-desugar (If a b c)   = liftM3 If     (desugar a) (desugar b) (desugar c)
+desugar (Closed t)   = liftM  Closed  (desugar t)
+desugar (RightT t)   = liftM  RightT  (desugar t)
+desugar (LeftT t )   = liftM  LeftT   (desugar t)
+desugar (WrapCtx t)  = liftM  WrapCtx (desugar t)
+desugar (Apply a b)  = liftM2 Apply   (desugar a) (desugar b)
+desugar (Lambda x b) = liftM2 Lambda  (desugar x) (desugar b)
+desugar (Param a b)  = liftM2 Param   (desugar a) (desugar b)
+desugar (If a b c)   = liftM3 If      (desugar a) (desugar b) (desugar c)
 desugar (Let x a b)  =
   liftM2 Apply (liftM2 Lambda (desugar x) (desugar b)) (desugar a)
 desugar (Or a b) = do
@@ -64,12 +68,13 @@ desugar (Or a b) = do
   b <- desugar b
   Fresh dx <- decl "x"
   let   rx =  refn "x"
-  makeContext $
+  t <- makeContext $
     tLet (term dx) (hole a)
       (tIf (term rx) (term rx) (hole b))
+  desugar t
 
 
-showTerm = putStrLn . unhygienicShowTerm
+showTerm = putStrLn . show
 
 main = do
   t_omega <- t_omega
@@ -80,19 +85,16 @@ main = do
 --  t_open <- t_open
   showTerm t_omega
   showTerm t_apply
-  (case t_omega of
-    Lambda (Decl d) b ->
-      -- cannot put `t_open` or `b` inside `CTerm`.
-      let env = bind d (Just t_apply) emptyEnv in do
-      showTerm $ subst env b) :: IO ()
-  showTerm $ desugar_let t_let
   
   putStrLn ""
   showTerm $ t_or
   putStrLn "==>"
   t_or_core <- desugar t_or
   showTerm $ t_or_core
---  show $ eval $ t_or_core
+  
+  putStrLn ""
+  putStrLn "A big term:"
+  showTerm $ self_apply $ t_or_core
   
   putStrLn ""
   putStrLn "ok"

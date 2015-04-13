@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, Rank2Types #-}
+{-# LANGUAGE GADTs, Rank2Types, FlexibleInstances #-}
 
 module Term where
 
@@ -7,7 +7,7 @@ import Scope (Decl, Refn, FreshDecl (FreshDecl),
               emptyScope, union, joinEnv, splitEnv,
               unhygienicDeclName, unhygienicRefnName)
 import qualified Scope as S
-import Control.Monad (liftM, liftM2, liftM3)
+import Data.Char (ord, chr)
 
 
 data Term a b where
@@ -130,6 +130,63 @@ subst env t = fst (sb env t) where
   sb env (Or a b)    = (Or    (subst env a) (subst env b), env)
 
 
+instance Show (Term () ()) where
+  show t = let (str, _, _) = sh t 'a' emptyEnv
+           in str where
+    sh :: Term a b -> Char -> Env String a -> (String, Char, Env String b)
+    -- a b c t: subterms
+    -- env: mapping from variables to their names
+    -- v: the next variable name to use (don't use more than 26).
+
+    sh (Decl d) v env =
+      let newV = chr (ord v + 1)
+          newEnv  = bind d [v] env in
+      ([v], newV, newEnv)
+    sh (Refn r) v env = (S.find r env, v, env)
+    
+    sh (LeftT t) v env =
+      let (envL, envR) = splitEnv env
+          (str, v', envL') = sh t v envL in
+      (str, v', joinEnv envL' envR)
+    sh (RightT t) v env =
+      let (envL, envR) = splitEnv env
+          (str, v', envR') = sh t v envR in
+      (str, v', joinEnv envL envR')
+    sh (Closed t) v env =
+      let (str, v', _) = sh t v emptyEnv in
+      (str, v', env)
+    sh (WrapCtx t) v env =
+      let (str, v', env') = sh t v (joinEnv emptyEnv env) in
+      (str, v', snd (splitEnv env'))
+    
+    sh (Param a b) v env =
+      let (strA, vA, envA) = sh a v env
+          (strB, vB, envB) = sh b vA env in
+      (strA ++ " " ++ strB, vB, union envA envB)
+    sh (Apply a b) v env =
+      let (strA, _, _) = sh a v env
+          (strB, _, _) = sh b v env in
+      ("(" ++ strA ++ " " ++ strB ++ ")", v, env)
+    sh (Lambda x b) v env =
+      let (strX, vX, envX) = sh x v env
+          (strB, _, _)    = sh b vX envX in
+      ("(lam " ++ strX ++ ". " ++ strB ++ ")", v, env)
+    sh (If a b c) v env =
+      let (strA, _, _) = sh a v env
+          (strB, _, _) = sh b v env
+          (strC, _, _) = sh c v env in
+      ("if " ++ strA ++ " " ++ strB ++ " " ++ strC ++ ")", v, env)
+    sh (Let x a b) v env =
+      let (strX, vX, envX) = sh x v env
+          (strA, _, _)        = sh a v env
+          (strB, _, _)        = sh b vX envX in
+      ("(let " ++ strX ++ " " ++ strA ++ " " ++ strB ++ ")", v, env)
+    sh (Or a b) v env =
+      let (strA, _, _) = sh a v env
+          (strB, _, _) = sh b v env in
+      ("(or " ++ strA ++ " " ++ strB ++ ")", v, env)
+
+
 unhygienicShowTerm :: Term a b -> String
 unhygienicShowTerm t = sh t 0 where
   sh :: Term a b -> Int -> String
@@ -161,4 +218,5 @@ unhygienicShowTerm t = sh t 0 where
 {- Exports -}
 
 bind = S.bind
+find = S.find
 emptyEnv = S.emptyEnv
