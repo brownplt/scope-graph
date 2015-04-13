@@ -1,21 +1,19 @@
 {-# LANGUAGE GADTs, Rank2Types #-}
 
 import Term
-import Scope (bind, emptyEnv, Join,
-              emptyScope) -- TODO: remove
 import Control.Monad (liftM, liftM2, liftM3)
 
 t_id :: IO (Term () ())
 t_id = do
   Fresh x <- decl "x"
   makeTerm $
-    lamb x (refn "x")
+    tLambda x (refn "x")
 
 t_omega :: IO (Term () ())
 t_omega = do
   Fresh x <- decl "x"
   makeTerm $
-    lamb x (appl (refn "x") (refn "x"))
+    tLambda x (tApply (refn "x") (refn "x"))
 
 t_open :: IO (Term () ())
 t_open = makeTerm $ (refn "x") -- error
@@ -26,9 +24,9 @@ t_apply = do
   Fresh dy <- decl "y"
   Fresh dz <- decl "z"
   makeTerm $
-    lamb dx
-         (lamb (param dy dz)
-               (appl (refn "x") (refn "y")))
+    tLambda dx
+         (tLambda (tParam dy dz)
+               (tApply (refn "x") (refn "y")))
 
 t_let :: IO (Term () ())
 t_let = do
@@ -36,21 +34,18 @@ t_let = do
   Fresh dy <- decl "y"
   t_id <- t_id
   makeTerm $
-    tlet dx (lamb dy (refn "y")) (refn "x")
+    tLet dx (tLambda dy (refn "y")) (refn "x")
 
 t_or :: IO (Term () ())
 t_or = do
   Fresh dx <- decl "x"
   let   rx =  refn "x"
   makeTerm $
-    lamb dx (tor rx rx)
+    tLambda dx (tOr rx rx)
 
 desugar_let :: Term a b -> Term a b
 desugar_let (Let x a b) = Apply (Lambda x b) a
 --desugar_let (Let x a b) = Apply (Lambda x a) b -- error!
-
-hole = tright
-term = tleft
 
 desugar :: Term a b -> IO (Term a b)
 desugar (Decl x)     = return $ Decl x
@@ -70,8 +65,8 @@ desugar (Or a b) = do
   Fresh dx <- decl "x"
   let   rx =  refn "x"
   makeContext $
-    tlet (term dx) (hole a)
-      (tif (term rx) (term rx) (hole b))
+    tLet (term dx) (hole a)
+      (tIf (term rx) (term rx) (hole b))
 
 
 showTerm = putStrLn . unhygienicShowTerm
