@@ -7,6 +7,7 @@ import Scope (Decl, Refn, FreshDecl (FreshDecl),
               emptyScope, union, joinEnv, splitEnv,
               unhygienicDeclName, unhygienicRefnName)
 import qualified Scope as S
+import Control.Monad (liftM, liftM2, liftM3)
 
 
 data Term a b where
@@ -72,15 +73,10 @@ tParam ab ac s =
       (c, sc) = ac s in
   (Param b c, union sb sc)
 
-tApply ab ac sa =
-  let (b, _) = ab sa
-      (c, _) = ac sa in
-  (Apply b c, sa)
-
-tLambda ab bc sa =
-  let (b, sb) = ab sa
-      (c, _) = bc sb in
-  (Lambda b c, sa)
+tApply  = S.runScoped2 Apply
+tLambda = S.runScoped2 Lambda
+tOr     = S.runScoped2 Or
+tIf     = S.runScoped3 If
 
 tLet x a b s =
   let (x', s') = x s
@@ -88,67 +84,50 @@ tLet x a b s =
       (b', _)  = b s' in
   (Let x' a' b', s)
 
-tOr a b s =
-  let (a', _) = a s
-      (b', _) = b s in
-  (Or a' b', s)
-
-tIf a b c s =
-  let ((a', _), (b', _), (c', _)) = (a s, b s, c s) in
-  (If a' b' c', s)
 
 
-subs :: Env (Maybe (Term () ())) a -> Term a b
+subst :: Env (Maybe (Term () ())) a -> Term a b -> Term a b
+subst env t = fst (sb env t) where
+  sb :: Env (Maybe (Term () ())) a -> Term a b
         -> (Term a b, Env (Maybe (Term () ())) b)
-subs env t = sub env t where
-  sub :: Env (Maybe (Term () ())) a -> Term a b
-         -> (Term a b, Env (Maybe (Term () ())) b)
-  sub env (Decl d) = (Decl d, S.bind d Nothing env)
-  sub env (Refn r) =
+  
+  sb env (Decl d) = (Decl d, S.bind d Nothing env)
+  sb env (Refn r) =
     let t = case S.find r env of
           Nothing -> Refn r
           Just t  -> Closed t in
     (t, env)
-  sub env (Closed t) =
-    let (t', env') = sub S.emptyEnv t in
+  
+  sb env (Closed t) =
+    let (t', env') = sb S.emptyEnv t in
     (Closed t', env)
-  sub env (LeftT a) =
+  sb env (LeftT a) =
     let (envL, envR) = splitEnv env
-        (a', envL') = sub envL a in
+        (a', envL') = sb envL a in
     (LeftT a', joinEnv envL' envR)
-  sub env (RightT b) =
+  sb env (RightT b) =
     let (envL, envR) = splitEnv env
-        (b', envR') = sub envR b in
-    (RightT b', joinEnv envL envR')
-  sub env (WrapCtx t) =
-    let (t', env') = sub (joinEnv S.emptyEnv env) t in
+        (b', envR') = sb envR b in
+    (RightT b', joinEnv envL envR')  
+  sb env (WrapCtx t) =
+    let (t', env') = sb (joinEnv S.emptyEnv env) t in
     (WrapCtx t', snd $ splitEnv env')
-  sub env (Lambda a b) =
-    let (a', env') = sub env  a
-        (b', _)    = sub env' b in
-    (Lambda a' b', env)
-  sub env (Apply a b) =
-    let (a', env') = sub env a
-        (b', _) = sub env' b in
-    (Apply a' b', env)
-  sub env (Param a b) =
-    let (a', enva) = sub env a
-        (b', envb) = sub env b in
+  
+  sb env (Lambda x b) =
+    let (x', envx) = sb env x in
+    (Lambda x' (subst envx b), env)
+  sb env (Param a b) =
+    let (a', enva) = sb env a
+        (b', envb) = sb env b in
     (Param a' b', union enva envb)
-  sub env (If a b c) =
-    let (a', _) = sub env a
-        (b', _) = sub env b
-        (c', _) = sub env c in
-    (If a' b' c', env)
-  sub env (Let x a b) =
-    let (x', envx) = sub env x
-        (a', _)    = sub env a
-        (b', _)    = sub envx b in
+  sb env (Let x a b) =
+    let (x', envx) = sb env x
+        (a', _)    = sb env a
+        (b', _)    = sb envx b in
     (Let x' a' b', env)
-  sub env (Or a b) =
-    let (a', _) = sub env a
-        (b', _) = sub env b in
-    (Or a' b', env)
+  sb env (Apply a b) = (Apply (subst env a) (subst env b), env)
+  sb env (If a b c)  = (If    (subst env a) (subst env b) (subst env c), env)
+  sb env (Or a b)    = (Or    (subst env a) (subst env b), env)
 
 
 unhygienicShowTerm :: Term a b -> String

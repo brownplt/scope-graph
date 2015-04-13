@@ -84,14 +84,15 @@ main = do
     Lambda (Decl d) b ->
       -- cannot put `t_open` or `b` inside `CTerm`.
       let env = bind d (Just t_apply) emptyEnv in do
-      showTerm $ fst $ subs env b) :: IO ()
+      showTerm $ subst env b) :: IO ()
   showTerm $ desugar_let t_let
   
   putStrLn ""
   showTerm $ t_or
   putStrLn "==>"
   t_or_core <- desugar t_or
-  showTerm $ fst $ subs emptyEnv t_or_core
+  showTerm $ t_or_core
+--  show $ eval $ t_or_core
   
   putStrLn ""
   putStrLn "ok"
