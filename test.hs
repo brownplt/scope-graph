@@ -46,6 +46,21 @@ t_or = do
   makeTerm $
     tLambda dx (tOr rx rx)
 
+{-
+t_module :: IO (Term () ())
+t_module = do
+  FreshExport ex <- expt "x"
+  FreshImport im <- impt "x"
+  Fresh dx       <- decl "x"
+  Fresh df       <- decl "f"
+  let rf         =  refn "f"
+  let rx         =  refn "x"
+  makeTerm $
+    tLetModule ex
+      (tSeq (tFunc df dx rx) (tApply rf (tNum 3)))
+      (tUseModule im rf)
+-}
+
 desugar_let :: Term a b -> Term a b
 desugar_let (Let x a b) = Apply (Lambda x b) a
 --desugar_let (Let x a b) = Apply (Lambda x a) b -- error!
@@ -82,6 +97,7 @@ main = do
   t_let <- t_let
   t_id <- t_id
   t_or <- t_or
+--  t_module <- t_module
 --  t_open <- t_open
   showTerm t_omega
   showTerm t_apply
@@ -95,6 +111,10 @@ main = do
   putStrLn ""
   putStrLn "A big term:"
   showTerm $ self_apply $ t_or_core
+  
+  putStrLn ""
+  putStrLn "Modules:"
+--  showTerm $ t_module
   
   putStrLn ""
   putStrLn "ok"

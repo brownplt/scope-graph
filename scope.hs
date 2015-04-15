@@ -1,10 +1,12 @@
 {-# LANGUAGE GADTs, Rank2Types #-}
 
-module Scope (Decl, Refn, decl, refn, bind, find,
+module Scope (Decl, Refn, newDecl, newRefn, bind, find,
               FreshDecl (FreshDecl),
               Scope, Scoped, emptyScope,
-              Join, Union, union,
-              Env, emptyEnv, splitEnv, joinEnv,
+              Pair, Join, join,
+              Env, emptyEnv, unpairEnv, pairEnv,
+              Import, Export, newImport, newExport, inport, export,
+              FreshExport (FreshExport), FreshImport (FreshImport),
               runScoped1, runScoped2, runScoped3,
               unhygienicDeclName, unhygienicRefnName) where
 
@@ -21,38 +23,80 @@ data Decl a b = Decl Name Id
 data Refn a = Refn Name Id
 
 data Export a b = Export Name Id
-data Import a = Import Name Id
+data Import a b = Import Name Id
 
 data FreshDecl =
   forall b. FreshDecl (forall a. Scoped a b (Decl a b))
 data FreshExport =
   forall b. FreshExport (forall a. Scoped a b (Export a b))
+data FreshImport =
+  forall b. FreshImport (forall a. Scope a ->
+                         Either BindError (Import a b, Scope b))
 
 
-decl :: String -> IO FreshDecl
-decl name = do
+newDecl :: String -> IO FreshDecl
+newDecl name = do
   id <- newUnique
   return $ FreshDecl $ \(Scope s) ->
-    (Decl name id, Scope ((name, Just id): s))
+    (Decl name id, Scope ((name, SBDecl id): s))
 
-refn :: String -> Scope a -> Either BindError (Refn a)
-refn name (Scope scope) =
+newRefn :: String -> Scope a -> Either BindError (Refn a)
+newRefn name (Scope scope) =
   case lookup name scope of
-    Nothing        -> Left  (UnboundError name)
-    Just Nothing   -> Left  (AmbiguousError name)
-    Just (Just id) -> Right (Refn name id)
+    Nothing             -> Left  (UnboundError name)
+    Just SBAmbig        -> Left  (AmbiguousError name)
+    Just (SBExport _ _) -> Left  (BindingTypeError name)
+    Just (SBDecl id)    -> Right (Refn name id)
+
+newExport :: String -> IO FreshExport
+newExport name = do
+  id <- newUnique
+  return $ FreshExport $ \s ->
+    (Export name id, Scope [(name, SBExport id s)])
+
+newImport :: String -> FreshImport
+newImport name = FreshImport $ \(Scope scope) ->
+  case lookup name scope of
+    Nothing          -> Left (UnboundError name)
+    Just SBAmbig     -> Left (AmbiguousError name)
+    Just (SBDecl id) -> Left (BindingTypeError name)
+    Just (SBExport id (Scope scope)) ->
+      Right (Import name id, Scope scope)
 
 bind :: Decl a b -> v -> Env v a -> Env v b
 bind (Decl name id) v (Env env) =
-  Env (Map.insert (name, id) v env)
+  Env (Map.insert (name, id) (BDecl v) env)
 
 find :: Refn a -> Env v a -> v
-find (Refn name id) (Env env) = (Map.!) env (name, id)
+find (Refn name id) (Env env) =
+  let BDecl v = (Map.!) env (name, id) in
+  v
+
+export :: Export a b -> Env v a -> Env v b
+export (Export name id) env =
+  Env (Map.singleton (name, id) (BExport env))
+
+inport :: Import a b -> Env v a -> Env v b
+inport (Import name id) (Env env) =
+  case (Map.!) env (name, id) of
+    BExport (Env env') -> Env env'
 
 
 {- Scope -}
 
-newtype Scope a = Scope [(Name, Maybe Id)]
+newtype Scope a = Scope [(Name, ScopeBinding)]
+
+data ScopeBinding where
+  SBAmbig  :: ScopeBinding
+  SBExport :: Id -> Scope a -> ScopeBinding
+  SBDecl   :: Id -> ScopeBinding
+
+instance Eq ScopeBinding where
+  SBAmbig == SBAmbig = True
+  SBExport id1 (Scope s1) == SBExport id2 (Scope s2) =
+    id1 == id2 && s1 == s2
+  SBDecl id1 == SBDecl id2 = id1 == id2
+  _ == _ = False
 
 type Scoped a b t = Scope a -> (t, Scope b)
 
@@ -85,40 +129,43 @@ runScoped3 f ab bc cd a =
   (f t1 t2 t3, a)
 
 
-{- Union -}
+{- Join -}
 
-class Environment e where
-  union :: e a -> e b -> e (Union a b)
+class Joinable e where
+  join :: e a -> e b -> e (Join a b)
 
-data Union a b
+data Join a b
 
-instance Environment Scope where
-  -- todo: What about union of Joined scopes?
-  union (Scope scope1) (Scope scope2) =
+instance Joinable Scope where
+  -- todo: What about join of Paired scopes?
+  join (Scope scope1) (Scope scope2) =
     let (suffix, diff1, diff2) = commonSuffix scope1 scope2 in
-    let add (name, Nothing) = (name, Nothing)
-        add (name, Just id) =
+    let add (name, bind) =
           case lookup name diff2 of
-            Nothing -> (name, Just id)
-            Just _  -> (name, Nothing) in
+            Nothing -> (name, bind)
+            Just _  -> (name, SBAmbig) in
     Scope $ (map add diff1) ++ diff2 ++ suffix
 
-instance Environment (Env v) where
-  union (Env env1) (Env env2) = Env (Map.union env1 env2)
+instance Joinable (Env v) where
+  join (Env env1) (Env env2) = Env (Map.union env1 env2)
 
 
 {- Environments -}
 
-newtype Env v a = Env (Map (Name, Id) v)
+newtype Env v a = Env (Map (Name, Id) (Binding v))
 
-data Join a b
+data Binding v where
+  BDecl   :: v -> Binding v
+  BExport :: Env v a -> Binding v
 
-splitEnv :: Env v (Join a b) -> (Env v a, Env v b)
-splitEnv (Env env) = (Env env, Env env)
+data Pair a b
 
-joinEnv :: Env v a -> Env v b -> Env v (Join a b)
--- guaranteed to be a disjoint union:
-joinEnv (Env env1) (Env env2) = Env (Map.union env1 env2)
+unpairEnv :: Env v (Pair a b) -> (Env v a, Env v b)
+unpairEnv (Env env) = (Env env, Env env)
+
+pairEnv :: Env v a -> Env v b -> Env v (Pair a b)
+-- guaranteed to be a disjoint join:
+pairEnv (Env env1) (Env env2) = Env (Map.union env1 env2)
 
 emptyEnv :: Env v ()
 emptyEnv = Env Map.empty
@@ -134,10 +181,13 @@ unhygienicRefnName (Refn name _) = name
 
 data BindError = UnboundError String
                | AmbiguousError String
+               | BindingTypeError String
 
 instance Show BindError where
   show (UnboundError name)   = "Unbound identifier: " ++ name
   show (AmbiguousError name) = "Ambiguously bound identifier: " ++ name
+  show (BindingTypeError name) =
+    "Mixed up module and variable references with: " ++ name
 
 
 {- Utility -}
