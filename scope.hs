@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, Rank2Types #-}
+{-# LANGUAGE GADTs, Rank2Types, MultiParamTypeClasses #-}
 
 module Scope (Decl, Refn, newDecl, newRefn, bind, find,
               FreshDecl (FreshDecl),
@@ -7,6 +7,7 @@ module Scope (Decl, Refn, newDecl, newRefn, bind, find,
               Env, emptyEnv, unpairEnv, pairEnv,
               Import, Export, newImport, newExport, inport, export,
               FreshExport (FreshExport), FreshImport (FreshImport),
+              EnvState, joinState, emptyState, getState, setState,
               runScoped1, runScoped2, runScoped3,
               unhygienicDeclName, unhygienicRefnName) where
 
@@ -63,23 +64,20 @@ newImport name = FreshImport $ \(Scope scope) ->
     Just (SBExport id (Scope scope)) ->
       Right (Import name id, Scope scope)
 
-bind :: Decl a b -> v -> Env v a -> Env v b
-bind (Decl name id) v (Env env) =
-  Env (Map.insert (name, id) (BDecl v) env)
+bind :: EnvState s => Decl a b -> v -> Env v s a -> Env v s b
+bind (Decl name id) v (Env st varEnv modEnv) =
+  Env st (Map.insert (name, id) v varEnv) modEnv
 
-find :: Refn a -> Env v a -> v
-find (Refn name id) (Env env) =
-  let BDecl v = (Map.!) env (name, id) in
-  v
+find :: Refn a -> Env v s a -> v
+find (Refn name id) (Env _ varEnv _) = (Map.!) varEnv (name, id)
 
-export :: Export a b -> Env v a -> Env v b
-export (Export name id) env =
-  Env (Map.singleton (name, id) (BExport env))
+export :: Export a b -> s -> Env v s a -> Env v s b
+export (Export name id) st env =
+  Env st Map.empty (Map.singleton (name, id) (castEnv env))
 
-inport :: Import a b -> Env v a -> Env v b
-inport (Import name id) (Env env) =
-  case (Map.!) env (name, id) of
-    BExport (Env env') -> Env env'
+inport :: Import a b -> Env v s a -> Env v s b
+inport (Import name id) (Env _ _ modEnv) =
+  castEnv $ (Map.!) modEnv (name, id)
 
 
 {- Scope -}
@@ -146,29 +144,42 @@ instance Joinable Scope where
             Just _  -> (name, SBAmbig) in
     Scope $ (map add diff1) ++ diff2 ++ suffix
 
-instance Joinable (Env v) where
-  join (Env env1) (Env env2) = Env (Map.union env1 env2)
+instance EnvState s => Joinable (Env v s) where
+  join (Env st1 varEnv1 modEnv1) (Env st2 varEnv2 modEnv2) =
+    Env (joinState st1 st2) (Map.union varEnv1 varEnv2) (Map.union modEnv1 modEnv2)
+
+class EnvState s where
+  emptyState :: s
+  joinState :: s -> s -> s
 
 
 {- Environments -}
 
-newtype Env v a = Env (Map (Name, Id) (Binding v))
-
-data Binding v where
-  BDecl   :: v -> Binding v
-  BExport :: Env v a -> Binding v
+data Env v s a = Env s
+                     (Map (Name, Id) v)
+                     (forall b. (Map (Name, Id) (Env v s b)))
 
 data Pair a b
 
-unpairEnv :: Env v (Pair a b) -> (Env v a, Env v b)
-unpairEnv (Env env) = (Env env, Env env)
+getState :: Env v s a -> s
+getState (Env s _ _) = s
 
-pairEnv :: Env v a -> Env v b -> Env v (Pair a b)
+setState :: Env v s a -> s -> Env v s a
+setState (Env _ varEnv modEnv) st = Env st varEnv modEnv
+
+unpairEnv :: Env v s (Pair a b) -> (Env v s a, Env v s b)
+unpairEnv env = (castEnv env, castEnv env)
+
+pairEnv :: EnvState s => Env v s a -> Env v s b -> s -> Env v s (Pair a b)
 -- guaranteed to be a disjoint join:
-pairEnv (Env env1) (Env env2) = Env (Map.union env1 env2)
+pairEnv (Env _ varEnv1 modEnv1) (Env _ varEnv2 modEnv2) st =
+  Env st (Map.union varEnv1 varEnv2) (Map.union modEnv1 modEnv2)
 
-emptyEnv :: Env v ()
-emptyEnv = Env Map.empty
+emptyEnv :: EnvState s => Env v s ()
+emptyEnv = Env emptyState Map.empty Map.empty
+
+castEnv :: Env v s a -> Env v s b
+castEnv (Env st varEnv modEnv) = Env st varEnv modEnv
 
 
 {- Unhygienic Operations -}
@@ -186,8 +197,6 @@ data BindError = UnboundError String
 instance Show BindError where
   show (UnboundError name)   = "Unbound identifier: " ++ name
   show (AmbiguousError name) = "Ambiguously bound identifier: " ++ name
-  show (BindingTypeError name) =
-    "Mixed up module and variable references with: " ++ name
 
 
 {- Utility -}
