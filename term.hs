@@ -1,13 +1,18 @@
 {-# LANGUAGE GADTs, Rank2Types, FlexibleInstances, ScopedTypeVariables #-}
 
+-- TODO: Change type of terms to Term a ()?
+-- TODO: Remove kind signatures?
+
 module Term where
 
 import Data.Char (ord, chr)
 
-import Scope hiding (bind, find, emptyEnv,
+import Scope hiding (bind, find, emptyEnv, Env,
                      FreshImport (FreshImport), FreshExport (FreshExport))
 import qualified Scope as S
 import Interp
+
+type Env = S.Env
 
 bind :: S.Decl a b -> v -> Env v s a -> Env v s b
 bind = S.bind
@@ -19,7 +24,6 @@ emptyEnv :: s -> Env v s ()
 emptyEnv = S.emptyEnv
 
 
--- TODO: Change type of terms to Term a ()
 data Term a b where
   {- Variables -}
   Decl   :: Decl a b   -> Term a b
@@ -58,30 +62,35 @@ type OpenTerm a b = Scoped a b (Term a b)
 data Fresh = forall b. Fresh (forall a. OpenTerm a b)
 
 data Interpreter v s r = Interpreter {
-  iDecl :: forall a b. Decl a b -> Env v s a -> (r, Env v s b),
-  iRefn :: forall a.   Refn a   -> v -> r,
-  iExpt :: forall a b. Export a b -> Env v s a -> (r, Env v s b),
-  iImpt :: forall a b. Import a b -> Env v s a -> (r, Env v s b),
+  iDecl :: forall a b. Decl a b -> Env v s a -> (r a b, Env v s b),
+  iRefn :: forall a.   Refn a   -> v -> r a a,
+  iExpt :: forall a b. Export a b -> Env v s a -> (r a b, Env v s b),
+  iImpt :: forall a b. Import a b -> Env v s a -> (r a b, Env v s b),
   
-  iLetModule :: r -> r -> r -> r,
-  iUseModule :: r -> r -> r,
+  iLetModule :: forall a b c. r b c -> r a b -> r c c -> r a a,
+  iUseModule :: forall a b.   r a b -> r (Join a b) (Join a b) -> r a a,
   
-  iApply  :: r -> r -> r,
-  iLambda :: r -> r -> r,
-  iFunc   :: r -> r -> r -> r,
-  iParam  :: r -> r -> r,
-  iIf     :: r -> r -> r -> r,
-  iSeq    :: r -> r -> r,
-  iNum    :: Int -> r,
+  iClosed :: forall a.     r () () -> r a a,
+  iRight  :: forall a b c. r b c -> r (Pair a b) (Pair a c),
+  iLeft   :: forall a b c. r a b -> r (Pair a c) (Pair b c),
+  iWrapCtx :: forall a b c. r (Pair () a) (Pair c b) -> r a b,
   
-  iLet    :: r -> r -> r -> r,
-  iOr     :: r -> r -> r
+  iApply  :: forall a.     r a a -> r a a -> r a a,
+  iLambda :: forall a b.   r a b -> r b b -> r a a,
+  iFunc   :: forall a b c. r a b -> r b c -> r c c -> r a b,
+  iParam  :: forall a b c. r a b -> r a c -> r a (Join b c),
+  iIf     :: forall a.     r a a -> r a a -> r a a -> r a a,
+  iSeq    :: forall a b c. r a b -> r b c -> r a c,
+  iNum    :: forall a.   Int -> r a a,
+
+  iLet    :: forall a b. r a b -> r a a -> r b b -> r a a,
+  iOr     :: forall a.   r a a -> r a a -> r a a
 }
 
-
-interpret :: forall v s r. ClosedTerm -> Interpreter v s r -> s -> r
-interpret t i s = run t (emptyEnv s) where
-  run :: Term a b -> Env v s a -> r
+interpret :: forall v s r p q.
+             Interpreter v s r -> Term p q -> Env v s p -> r p q
+interpret i t env = run t env where
+  run :: Term a b -> Env v s a -> r a b
   run t e = fst (interp t e)
   
   interp :: Term a b -> Interp v s r a b
@@ -92,18 +101,27 @@ interpret t i s = run t (emptyEnv s) where
   
   interp (Closed t) = \env ->
     let (r, env') = interp t (clearEnv env) in
-    (r, env)
-  interp (RightT t) = runRightEnv (interp t)
-  interp (LeftT t)  = runLeftEnv  (interp t)
+    (iClosed i r, env)
+  interp (RightT t) = \env ->
+    let (r, env') = runRightEnv (interp t) env in
+    (iRight i r, env')
+  interp (LeftT t) = \env ->
+    let (r, env') = runLeftEnv (interp t) env in
+    (iLeft i r, env')
   interp (WrapCtx t) = \env ->
     let (r, env') = interp t (liftRightEnv env) in
-    (r, lowerRightEnv env')
+    (iWrapCtx i r, lowerRightEnv env')
   
-  interp (Apply a b)  = runInterp2 (iApply i)  (interp a) (interp b)
-  interp (Lambda x b) = runInterp2 (iLambda i) (interp x) (interp b)
+  interp (Apply a b) = \env ->
+    (iApply i (run a env) (run b env), env)
+  interp (Lambda x b) = \env ->
+    let (x', envx) = interp x env
+        (b', _)    = interp b envx in
+    (iLambda i x' b', env)
   interp (Param a b)  = joinInterp (iParam i)  (interp a) (interp b)
-  interp (If a b c)   = runInterp3 (iIf i)     (interp a) (interp b) (interp c)
   interp (Or a b)     = runInterp2 (iOr i)     (interp a) (interp b)
+  interp (If a b c)   = \env ->
+    (iIf i (run a env) (run b env) (run c env), env)
   interp (Num n) = produce (iNum i n)
   interp (Func f x b) = \env ->
     let (f', envf) = interp f env
@@ -198,8 +216,12 @@ tSeq ab bc sa =
       (c, sc) = bc sb in
   (Seq b c, sc)
 
+tLambda ab bc sa =
+  let (b, sb) = ab sa
+      (c, _)  = bc sb in
+  (Lambda b c, sa)
+
 tApply  = runScoped2 Apply
-tLambda = runScoped2 Lambda
 tOr     = runScoped2 Or
 tIf     = runScoped3 If
 
@@ -209,7 +231,7 @@ tLet x a b s =
   let (x', s') = x s
       (a', _)  = a s
       (b', _)  = b s' in
-  (Let x' a' b', s)
+  (Let x' a' b', emptyScope)
 
 tFunc f x b s =
   let (f', sf) = f s
@@ -219,94 +241,86 @@ tFunc f x b s =
 
 
 subst :: Env (Maybe ClosedTerm) () a -> Term a b -> Term a b
-subst env t = fst (sb t env) where
-  sb :: Term a b -> Interp (Maybe ClosedTerm) () (Term a b) a b
-  
-  sb (Decl d) env = (Decl d, bind d Nothing env)
-  sb (Refn r) env =
-    let t = case find r env of
-          Nothing -> Refn r
-          Just t  -> Closed t in
-    (t, env)
-  
-  sb (LetModule ex mod body) env =
-    let (mod', envMod) = sb mod env
-        (ex', envEx)   = sb ex envMod
-        (body', _)     = sb body envEx in
-    (LetModule ex' mod' body', env)
-  sb (UseModule im body) env =
-    let (im', envIm) = sb im env
-        (body', _)   = sb body (join env envIm) in
-    (UseModule im body', env)
+subst env t = interpret interp_subst t env
 
-  sb (Closed t) env =
-    let (t', env') = sb t (emptyEnv ()) in
-    (Closed t', env)
-  sb (LeftT a) env =
-    let (a', env') = runLeftEnv (sb a) env in
-    (LeftT a', env')
-  sb (RightT b) env =
-    let (b', env') = runRightEnv (sb b) env in
-    (RightT b', env')
-  sb (WrapCtx t) env =
-    let (t', env') = sb t (liftRightEnv env) in
-    (WrapCtx t', lowerRightEnv env')
+interp_subst :: Interpreter (Maybe ClosedTerm) () Term
+interp_subst = Interpreter {
+  iDecl = \d env -> (Decl d, bind d Nothing env),
+  iRefn = \r v ->
+    case v of
+      Nothing -> Refn r
+      Just t  -> Closed t,
+  iImpt = \im env -> (Import im, inport im env),
+  iExpt = \ex env -> (Export ex, export ex env),
   
-  sb (Lambda x b) env =
-    let (x', envx) = sb x env in
-    (Lambda x' (subst envx b), env)
-  sb (Param a b) env = joinInterp Param (sb a) (sb b) env
-  sb (Let x a b) env =
-    let (x', envx) = sb x env
-        (a', _)    = sb a env
-        (b', _)    = sb b envx in
-    (Let x' a' b', env)
-  sb (Func f x b) env =
-    let (f', envf) = sb f env
-        (x', envx) = sb x envf
-        (b', _)    = sb b envx in
-    (Func f' x' b', envf)
-  sb (Seq a b) env =
-    let (a', enva) = sb a env
-        (b', envb) = sb b enva in
-    (Seq a' b', envb)
-  sb (Num n)     env = (Num n, env)
-  sb (Apply a b) env = (Apply (subst env a) (subst env b), env)
-  sb (If a b c)  env = (If    (subst env a) (subst env b) (subst env c), env)
-  sb (Or a b)    env = (Or    (subst env a) (subst env b), env)
+  iClosed  = Closed,
+  iLeft    = LeftT,
+  iRight   = RightT,
+  iWrapCtx = WrapCtx,
+  
+  iLetModule = LetModule,
+  iUseModule = UseModule,
+  iLambda    = Lambda,
+  iApply     = Apply,
+  iIf        = If,
+  iFunc      = Func,
+  iParam     = Param,
+  iSeq       = Seq,
+  iLet       = Let,
+  iOr        = Or,
+  iNum       = Num
+  }
 
 
 data ShowState = ShowState Char String -- next var, current module name
 
-interp_show :: Interpreter String ShowState String
+newtype ShowResult a b = SR String
+
+instance Show (ShowResult a b) where
+  show (SR str) = str
+
+interp_show :: Interpreter String ShowState ShowResult
 interp_show = Interpreter {
   iDecl = \d env ->
      let (v, newEnv) = nextName env
          name = [v] in
-     (name, bind d name newEnv),
-  iRefn = \_ str -> str,
+     (SR name, bind d name newEnv),
+  iRefn = \_ str -> SR str,
   iImpt = \im env ->
     let env' = inport im env
         modName = getModName env' in
-    (modName, env'),
+    (SR modName, env'),
   iExpt = \ex env ->
     let (v, env') = nextModName env
         envEx = export ex env' in
-    ([v], envEx),
+    (SR [v], envEx),
   
-  iLetModule = \ex mod body ->
+  iClosed  = \(SR t) -> (SR t),
+  iLeft    = \(SR t) -> (SR t),
+  iRight   = \(SR t) -> (SR t),
+  iWrapCtx = \(SR t) -> (SR t),
+  
+  iLetModule = \(SR ex) (SR mod) (SR body) -> SR $
     "(let-module (" ++ ex ++ ") " ++ mod ++ " " ++ body ++ ")",
-  iUseModule = \im body ->
+  iUseModule = \(SR im) (SR body) -> SR $
     "(use-module (" ++ im ++ ") " ++ body ++ ")",
-  iLambda = \x b   -> "(lam " ++ x ++ ". " ++ b ++ ")",
-  iApply  = \a b   -> "(" ++ a ++ " " ++ b ++ ")",
-  iIf     = \a b c -> "(if " ++ a ++ " " ++ b ++ " " ++ c ++ ")",
-  iFunc   = \f x b -> "(fun (" ++ f ++ " " ++ x ++ ") " ++ b ++ ")",
-  iParam  = \a b   -> a ++ " " ++ b,
-  iSeq    = \a b   -> a ++ " " ++ b,
-  iNum    = \n     -> show n,
-  iLet    = \x a b -> "(let " ++ x ++ " " ++ a ++ " " ++ b ++ ")",
-  iOr     = \a b   -> "(or " ++ a ++ " " ++ b ++ ")"
+  iLambda = \(SR x) (SR b) -> SR $
+            "(lam " ++ x ++ ". " ++ b ++ ")",
+  iApply  = \(SR a) (SR b) -> SR $
+            "(" ++ a ++ " " ++ b ++ ")",
+  iIf     = \(SR a) (SR b) (SR c) -> SR $
+            "(if " ++ a ++ " " ++ b ++ " " ++ c ++ ")",
+  iFunc   = \(SR f) (SR x) (SR b) -> SR $
+            "(fun (" ++ f ++ " " ++ x ++ ") " ++ b ++ ")",
+  iParam  = \(SR a) (SR b) -> SR $
+            a ++ " " ++ b,
+  iSeq    = \(SR a) (SR b) -> SR $
+            a ++ " " ++ b,
+  iLet    = \(SR x) (SR a) (SR b) -> SR $
+            "(let " ++ x ++ " " ++ a ++ " " ++ b ++ ")",
+  iOr     = \(SR a) (SR b) -> SR $
+            "(or " ++ a ++ " " ++ b ++ ")",
+  iNum    = \n -> SR (show n)
   }
   where
     nextName :: Env String ShowState a -> (Char, Env String ShowState a)
@@ -329,4 +343,5 @@ interp_show = Interpreter {
       modName
 
 instance Show ClosedTerm where
-  show t = interpret t interp_show (ShowState 'a' "%TOPLEVEL_MODULE")
+  show t = show $ interpret interp_show t (emptyEnv init)
+    where init = ShowState 'a' "%TOPLEVEL_MODULE"

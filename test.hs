@@ -59,6 +59,14 @@ t_module = do
       (tSeq (tFunc df dx rx) (tApply rf (tNum 3)))
       (tUseModule im rf)
 
+t_subst :: IO ClosedTerm
+t_subst = do
+  t_omega <- t_omega
+  case t_omega of
+    Lambda (Decl d) b -> do
+      let env = bind d (Just t_omega) (emptyEnv ())
+      return $ Lambda (Decl d) (subst env b)
+
 desugar_let :: Term a b -> Term a b
 desugar_let (Let x a b) = Apply (Lambda x b) a
 --desugar_let (Let x a b) = Apply (Lambda x a) b -- error!
@@ -87,7 +95,7 @@ desugar (Or a b) = do
   desugar t
 
 
-showTerm = putStrLn . show
+putTerm = putStrLn . show
 
 main = do
   t_omega <- t_omega
@@ -96,23 +104,28 @@ main = do
   t_id <- t_id
   t_or <- t_or
   t_module <- t_module
+  t_subst <- t_subst
 --  t_open <- t_open
-  showTerm t_omega
-  showTerm t_apply
+  putTerm t_omega
+  putTerm t_apply
   
   putStrLn ""
-  showTerm $ t_or
+  putTerm $ t_or
   putStrLn "==>"
   t_or_core <- desugar t_or
-  showTerm $ t_or_core
+  putTerm $ t_or_core
   
   putStrLn ""
   putStrLn "A big term:"
-  showTerm $ self_apply $ t_or_core
+  putTerm $ self_apply $ t_or_core
   
   putStrLn ""
+  putStrLn "Unimpressive subst:"
+  putTerm $ t_subst
+
+  putStrLn ""
   putStrLn "Modules:"
-  showTerm $ t_module
+  putTerm $ t_module
   
   putStrLn ""
   putStrLn "ok"
