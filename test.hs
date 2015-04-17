@@ -3,25 +3,25 @@
 import Term
 import Control.Monad (liftM, liftM2, liftM3)
 
-t_id :: IO (Term () ())
+t_id :: IO ClosedTerm
 t_id = do
   Fresh x <- decl "x"
   makeTerm $
     tLambda x (refn "x")
 
-t_omega :: IO (Term () ())
+t_omega :: IO ClosedTerm
 t_omega = do
   Fresh x <- decl "x"
   makeTerm $
     tLambda x (tApply (refn "x") (refn "x"))
 
-t_open :: IO (Term () ())
+t_open :: IO ClosedTerm
 t_open = makeTerm $ (refn "x") -- error
 
-self_apply :: Term () () -> Term () ()
+self_apply :: ClosedTerm -> ClosedTerm
 self_apply t = Apply t t
 
-t_apply :: IO (Term () ())
+t_apply :: IO ClosedTerm
 t_apply = do
   Fresh dx <- decl "x"
   Fresh dy <- decl "y"
@@ -31,7 +31,7 @@ t_apply = do
          (tLambda (tParam dy dz)
                (tApply (refn "x") (refn "y")))
 
-t_let :: IO (Term () ())
+t_let :: IO ClosedTerm
 t_let = do
   Fresh dx <- decl "x"
   Fresh dy <- decl "y"
@@ -39,17 +39,17 @@ t_let = do
   makeTerm $
     tLet dx (tLambda dy (refn "y")) (refn "x")
 
-t_or :: IO (Term () ())
+t_or :: IO ClosedTerm
 t_or = do
   Fresh dx <- decl "x"
   let   rx =  refn "x"
   makeTerm $
     tLambda dx (tOr rx rx)
 
-t_module :: IO (Term () ())
+t_module :: IO ClosedTerm
 t_module = do
-  FreshExport ex <- expt "x"
-  FreshImport im <- impt "x"
+  Fresh ex <- tExport "x"
+  Fresh im <- tImport "x"
   Fresh dx       <- decl "x"
   Fresh df       <- decl "f"
   let rf         =  refn "f"

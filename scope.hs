@@ -1,15 +1,22 @@
 {-# LANGUAGE GADTs, Rank2Types, MultiParamTypeClasses #-}
 
-module Scope (Decl, Refn, newDecl, newRefn, bind, find,
-              FreshDecl (FreshDecl),
-              Scope, Scoped, emptyScope,
-              Pair, Join, join,
-              Env, emptyEnv, unpairEnv, pairEnv,
-              Import, Export, newImport, newExport, inport, export,
-              FreshExport (FreshExport), FreshImport (FreshImport),
-              EnvState, joinState, emptyState, getState, setState,
-              runScoped1, runScoped2, runScoped3,
-              unhygienicDeclName, unhygienicRefnName) where
+module Scope (
+  {- Making Variables -}
+  FreshDecl (FreshDecl), Decl, Refn, newDecl, newRefn,
+  {- Scope -}
+  Scope, Scoped, emptyScope, Pair, Join, join,
+  {- Environments -}
+  Env, emptyEnv, bind, find,
+  runLeftEnv, runRightEnv, liftLeftEnv, liftRightEnv,
+  lowerLeftEnv, lowerRightEnv, clearEnv,
+  {- Modules -}
+  Import, Export, newImport, newExport, inport, export,
+  FreshExport (FreshExport), FreshImport (FreshImport),
+  {- Computations -}
+  getState, setState,
+  {- Unhygienic operations! -}
+  unhygienicDeclName, unhygienicRefnName)
+       where
 
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -64,16 +71,16 @@ newImport name = FreshImport $ \(Scope scope) ->
     Just (SBExport id (Scope scope)) ->
       Right (Import name id, Scope scope)
 
-bind :: EnvState s => Decl a b -> v -> Env v s a -> Env v s b
+bind :: Decl a b -> v -> Env v s a -> Env v s b
 bind (Decl name id) v (Env st varEnv modEnv) =
   Env st (Map.insert (name, id) v varEnv) modEnv
 
 find :: Refn a -> Env v s a -> v
 find (Refn name id) (Env _ varEnv _) = (Map.!) varEnv (name, id)
 
-export :: Export a b -> s -> Env v s a -> Env v s b
-export (Export name id) st env =
-  Env st Map.empty (Map.singleton (name, id) (castEnv env))
+export :: Export a b -> Env v s a -> Env v s b
+export (Export name id) env =
+  Env (getState env) Map.empty (Map.singleton (name, id) (castEnv env))
 
 inport :: Import a b -> Env v s a -> Env v s b
 inport (Import name id) (Env _ _ modEnv) =
@@ -101,31 +108,6 @@ type Scoped a b t = Scope a -> (t, Scope b)
 emptyScope :: Scope ()
 emptyScope = Scope []
 
-runScoped1 :: (t1 -> t2)
-              -> Scoped a b t1
-              -> Scoped a a t2
-runScoped1 f ab a = let (t1, b) = ab a in (f t1, a)
-
-runScoped2 :: (t1 -> t2 -> t3)
-              -> Scoped a b t1
-              -> Scoped b c t2
-              -> Scoped a a t3
-runScoped2 f ab bc a =
-  let (t1, b) = ab a
-      (t2, c) = bc b in
-  (f t1 t2, a)
-
-runScoped3 :: (t1 -> t2 -> t3 -> t4)
-              -> Scoped a b t1
-              -> Scoped b c t2
-              -> Scoped c d t3
-              -> Scoped a a t4
-runScoped3 f ab bc cd a =
-  let (t1, b) = ab a
-      (t2, c) = bc b
-      (t3, d) = cd c in
-  (f t1 t2 t3, a)
-
 
 {- Join -}
 
@@ -144,13 +126,10 @@ instance Joinable Scope where
             Just _  -> (name, SBAmbig) in
     Scope $ (map add diff1) ++ diff2 ++ suffix
 
-instance EnvState s => Joinable (Env v s) where
-  join (Env st1 varEnv1 modEnv1) (Env st2 varEnv2 modEnv2) =
-    Env (joinState st1 st2) (Map.union varEnv1 varEnv2) (Map.union modEnv1 modEnv2)
-
-class EnvState s where
-  emptyState :: s
-  joinState :: s -> s -> s
+instance Joinable (Env v s) where
+  -- TODO
+  join (Env st1 varEnv1 modEnv1) (Env _ varEnv2 modEnv2) =
+    Env st1 (Map.union varEnv1 varEnv2) (Map.union modEnv1 modEnv2)
 
 
 {- Environments -}
@@ -167,16 +146,37 @@ getState (Env s _ _) = s
 setState :: Env v s a -> s -> Env v s a
 setState (Env _ varEnv modEnv) st = Env st varEnv modEnv
 
-unpairEnv :: Env v s (Pair a b) -> (Env v s a, Env v s b)
-unpairEnv env = (castEnv env, castEnv env)
+runLeftEnv :: (Env v s a -> (t, Env v s a'))
+              -> Env v s (Pair a b)
+              -> (t, Env v s (Pair a' b))
+runLeftEnv f env =
+  let (x, env') = f (castEnv env) in
+  (x, castEnv env')
 
-pairEnv :: EnvState s => Env v s a -> Env v s b -> s -> Env v s (Pair a b)
--- guaranteed to be a disjoint join:
-pairEnv (Env _ varEnv1 modEnv1) (Env _ varEnv2 modEnv2) st =
-  Env st (Map.union varEnv1 varEnv2) (Map.union modEnv1 modEnv2)
+runRightEnv :: (Env v s b -> (t, Env v s b'))
+               -> Env v s (Pair a b)
+               -> (t, Env v s (Pair a b'))
+runRightEnv f env =
+  let (x, env') = f (castEnv env) in
+  (x, castEnv env')
 
-emptyEnv :: EnvState s => Env v s ()
-emptyEnv = Env emptyState Map.empty Map.empty
+liftLeftEnv :: Env v s a -> Env v s (Pair a ())
+liftLeftEnv = castEnv
+
+liftRightEnv :: Env v s a -> Env v s (Pair () a)
+liftRightEnv = castEnv
+
+lowerLeftEnv :: Env v s (Pair a b) -> Env v s a
+lowerLeftEnv = castEnv
+
+lowerRightEnv :: Env v s (Pair a b) -> Env v s b
+lowerRightEnv = castEnv
+
+clearEnv :: Env v s a -> Env v s ()
+clearEnv (Env st _ _) = Env st Map.empty Map.empty
+
+emptyEnv :: s -> Env v s ()
+emptyEnv s = Env s Map.empty Map.empty
 
 castEnv :: Env v s a -> Env v s b
 castEnv (Env st varEnv modEnv) = Env st varEnv modEnv
