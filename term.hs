@@ -119,10 +119,11 @@ interpret i t env = run t env where
         (b', _)    = interp b envx in
     (iLambda i x' b', env)
   interp (Param a b)  = joinInterp (iParam i)  (interp a) (interp b)
-  interp (Or a b)     = runInterp2 (iOr i)     (interp a) (interp b)
+  interp (Or a b) = \env ->
+    (iOr i (run a env) (run b env), env)
   interp (If a b c)   = \env ->
     (iIf i (run a env) (run b env) (run c env), env)
-  interp (Num n) = produce (iNum i n)
+  interp (Num n) = \env -> (iNum i n, env)
   interp (Func f x b) = \env ->
     let (f', envf) = interp f env
         (x', envx) = interp x envf
@@ -221,9 +222,9 @@ tLambda ab bc sa =
       (c, _)  = bc sb in
   (Lambda b c, sa)
 
-tApply  = runScoped2 Apply
-tOr     = runScoped2 Or
-tIf     = runScoped3 If
+tApply a b s =   (Apply (fst $ a s) (fst $ b s), s)
+tOr    a b s =   (Or    (fst $ a s) (fst $ b s), s)
+tIf    a b c s = (If    (fst $ a s) (fst $ b s) (fst $ c s), s)
 
 tNum n s = (Num n, s)
 
