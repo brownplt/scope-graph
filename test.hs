@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs, Rank2Types #-}
 
 import Term
+import Lang
 import Control.Monad (liftM, liftM2, liftM3)
 
 t_id :: IO ClosedTerm

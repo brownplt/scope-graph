@@ -1,27 +1,14 @@
-{-# LANGUAGE GADTs, Rank2Types, FlexibleInstances, ScopedTypeVariables #-}
+{-# LANGUAGE GADTs, Rank2Types, ScopedTypeVariables #-}
 
 -- TODO: Change type of terms to Term a ()?
 -- TODO: Remove kind signatures?
 
 module Term where
 
-import Data.Char (ord, chr)
-
 import Scope hiding (bind, find, emptyEnv, Env,
-                     FreshImport (FreshImport), FreshExport (FreshExport))
+                     FreshImport (FreshImport), FreshExport (FreshExport),
+                     getState, setState, inport, export)
 import qualified Scope as S
-import Interp
-
-type Env = S.Env
-
-bind :: S.Decl a b -> v -> Env v s a -> Env v s b
-bind = S.bind
-
-find :: S.Refn a -> Env v s a -> v
-find = S.find
-
-emptyEnv :: s -> Env v s ()
-emptyEnv = S.emptyEnv
 
 
 data Term a b where
@@ -61,6 +48,21 @@ type OpenTerm a b = Scoped a b (Term a b)
 
 data Fresh = forall b. Fresh (forall a. OpenTerm a b)
 
+
+{- Interpretation of Terms -}
+
+type Interp v s r a b = Env v s a -> (r a b, Env v s b)
+
+joinInterp :: (r a b -> r a c -> r a (Join b c))
+        -> Interp v s r a b
+        -> Interp v s r a c
+        -> Interp v s r a (Join b c)
+joinInterp f i1 i2 env =
+  let (r1, env1) = i1 env
+      (r2, env2) = i2 (setState env (getState env1)) in
+  (f r1 r2, join env1 env2)
+
+
 data Interpreter v s r = Interpreter {
   iDecl :: forall a b. Decl a b -> Env v s a -> (r a b, Env v s b),
   iRefn :: forall a.   Refn a   -> v -> r a a,
@@ -86,6 +88,7 @@ data Interpreter v s r = Interpreter {
   iLet    :: forall a b. r a b -> r a a -> r b b -> r a a,
   iOr     :: forall a.   r a a -> r a a -> r a a
 }
+
 
 interpret :: forall v s r p q.
              Interpreter v s r -> Term p q -> Env v s p -> r p q
@@ -148,6 +151,80 @@ interpret i t env = run t env where
     let (im', envIm) = interp im env
         (body', _)   = interp body (join env envIm) in
     (iUseModule i im' body', env)
+
+
+-- Most interpretations' return values don't neeed to be
+-- parameterized over scope variables.
+
+data SimpleInterpreter v s r = SimpleInterpreter {
+  sDecl :: forall a b. Decl a b -> Env v s a -> (r, Env v s b),
+  sRefn :: forall a.   Refn a   -> v -> r,
+  sExpt :: forall a b. Export a b -> Env v s a -> (r, Env v s b),
+  sImpt :: forall a b. Import a b -> Env v s a -> (r, Env v s b),
+  
+  sLetModule :: r -> r -> r -> r,
+  sUseModule :: r -> r -> r,
+  
+  sApply  :: r -> r -> r,
+  sLambda :: r -> r -> r,
+  sFunc   :: r -> r -> r -> r,
+  sParam  :: r -> r -> r,
+  sIf     :: r -> r -> r -> r,
+  sSeq    :: r -> r -> r,
+  sNum    :: Int -> r,
+  
+  sLet    :: r -> r -> r -> r,
+  sOr     :: r -> r -> r
+}
+
+
+newtype SimpleResult r a b = SimpleResult r
+
+liftSimpleInterpreter :: SimpleInterpreter v s r
+                         -> Interpreter v s (SimpleResult r)
+liftSimpleInterpreter i = Interpreter {
+  iDecl = \d env -> let (r, env') = sDecl i d env in
+   (SimpleResult r, env'),
+  iRefn = \r v -> SimpleResult (sRefn i r v),
+  iExpt = \ex env -> let (r, env') = sExpt i ex env in
+   (SimpleResult r, env'),
+  iImpt = \im env -> let (r, env') = sImpt i im env in
+   (SimpleResult r, env'),
+  
+  iClosed  = lift0,
+  iLeft    = lift0,
+  iRight   = lift0,
+  iWrapCtx = lift0,
+  
+  iLetModule = lift3 (sLetModule i),
+  iUseModule = lift2 (sUseModule i),
+  
+  iApply     = lift2 (sApply i),
+  iLambda    = lift2 (sLambda i),
+  iFunc      = lift3 (sFunc i),
+  iParam     = lift2 (sParam i),
+  iIf        = lift3 (sIf i),
+  iSeq       = lift2 (sSeq i),
+  iNum       = \n -> SimpleResult (sNum i n),
+  
+  iLet       = lift3 (sLet i),
+  iOr        = lift2 (sOr i)
+  }
+  where
+    lift0 (SimpleResult a) = SimpleResult a
+    lift1 f (SimpleResult a) = SimpleResult (f a)
+    lift2 f (SimpleResult a) (SimpleResult b) = SimpleResult (f a b)
+    lift3 f (SimpleResult a) (SimpleResult b) (SimpleResult c) =
+      SimpleResult (f a b c)
+
+simpleInterpret :: forall v s r p q.
+                   SimpleInterpreter v s r
+                   -> Term p q
+                   -> Env v s p
+                   -> r
+simpleInterpret i t e =
+  let SimpleResult r = interpret (liftSimpleInterpreter i) t e in
+  r
 
 
 {- Term & Context Construction -}
@@ -241,108 +318,20 @@ tFunc f x b s =
   (Func f' x' b', sf)
 
 
-subst :: Env (Maybe ClosedTerm) () a -> Term a b -> Term a b
-subst env t = interpret interp_subst t env
+{- Exports -}
 
-interp_subst :: Interpreter (Maybe ClosedTerm) () Term
-interp_subst = Interpreter {
-  iDecl = \d env -> (Decl d, bind d Nothing env),
-  iRefn = \r v ->
-    case v of
-      Nothing -> Refn r
-      Just t  -> Closed t,
-  iImpt = \im env -> (Import im, inport im env),
-  iExpt = \ex env -> (Export ex, export ex env),
-  
-  iClosed  = Closed,
-  iLeft    = LeftT,
-  iRight   = RightT,
-  iWrapCtx = WrapCtx,
-  
-  iLetModule = LetModule,
-  iUseModule = UseModule,
-  iLambda    = Lambda,
-  iApply     = Apply,
-  iIf        = If,
-  iFunc      = Func,
-  iParam     = Param,
-  iSeq       = Seq,
-  iLet       = Let,
-  iOr        = Or,
-  iNum       = Num
-  }
+type Env = S.Env
 
+bind :: S.Decl a b -> v -> Env v s a -> Env v s b
+bind = S.bind
 
-data ShowState = ShowState Char String -- next var, current module name
+find :: S.Refn a -> Env v s a -> v
+find = S.find
 
-newtype ShowResult a b = SR String
+inport = S.inport
+export = S.export
+getState = S.getState
+setState = S.setState
 
-instance Show (ShowResult a b) where
-  show (SR str) = str
-
-interp_show :: Interpreter String ShowState ShowResult
-interp_show = Interpreter {
-  iDecl = \d env ->
-     let (v, newEnv) = nextName env
-         name = [v] in
-     (SR name, bind d name newEnv),
-  iRefn = \_ str -> SR str,
-  iImpt = \im env ->
-    let env' = inport im env
-        modName = getModName env' in
-    (SR modName, env'),
-  iExpt = \ex env ->
-    let (v, env') = nextModName env
-        envEx = export ex env' in
-    (SR [v], envEx),
-  
-  iClosed  = \(SR t) -> (SR t),
-  iLeft    = \(SR t) -> (SR t),
-  iRight   = \(SR t) -> (SR t),
-  iWrapCtx = \(SR t) -> (SR t),
-  
-  iLetModule = \(SR ex) (SR mod) (SR body) -> SR $
-    "(let-module (" ++ ex ++ ") " ++ mod ++ " " ++ body ++ ")",
-  iUseModule = \(SR im) (SR body) -> SR $
-    "(use-module (" ++ im ++ ") " ++ body ++ ")",
-  iLambda = \(SR x) (SR b) -> SR $
-            "(lam " ++ x ++ ". " ++ b ++ ")",
-  iApply  = \(SR a) (SR b) -> SR $
-            "(" ++ a ++ " " ++ b ++ ")",
-  iIf     = \(SR a) (SR b) (SR c) -> SR $
-            "(if " ++ a ++ " " ++ b ++ " " ++ c ++ ")",
-  iFunc   = \(SR f) (SR x) (SR b) -> SR $
-            "(fun (" ++ f ++ " " ++ x ++ ") " ++ b ++ ")",
-  iParam  = \(SR a) (SR b) -> SR $
-            a ++ " " ++ b,
-  iSeq    = \(SR a) (SR b) -> SR $
-            a ++ " " ++ b,
-  iLet    = \(SR x) (SR a) (SR b) -> SR $
-            "(let " ++ x ++ " " ++ a ++ " " ++ b ++ ")",
-  iOr     = \(SR a) (SR b) -> SR $
-            "(or " ++ a ++ " " ++ b ++ ")",
-  iNum    = \n -> SR (show n)
-  }
-  where
-    nextName :: Env String ShowState a -> (Char, Env String ShowState a)
-    nextName env =
-      let ShowState oldName mod = getState env
-          newName = chr (ord oldName + 1)
-          newEnv  = setState env (ShowState newName mod) in
-      (oldName, newEnv)
-  
-    nextModName :: Env String ShowState a -> (Char, Env String ShowState a)
-    nextModName env =
-      let ShowState oldName mod = getState env
-          newName = chr (ord oldName + 1)
-          newEnv  = setState env (ShowState newName [oldName]) in
-      (oldName, newEnv)
-    
-    getModName :: Env String ShowState a -> String
-    getModName env =
-      let ShowState _ modName = getState env in
-      modName
-
-instance Show ClosedTerm where
-  show t = show $ interpret interp_show t (emptyEnv init)
-    where init = ShowState 'a' "%TOPLEVEL_MODULE"
+emptyEnv :: s -> Env v s ()
+emptyEnv = S.emptyEnv
