@@ -29,6 +29,7 @@ data Term a b where
 
   {- Core Language -}
   Num    :: Int -> Term a a
+  Unop   :: Unop -> Term a a -> Term a a
   Binop  :: Binop -> Term a a -> Term a a -> Term a a
   Apply  :: Term a a -> Term a a -> Term a a
   Lambda :: Term a b -> Term b b -> Term a a
@@ -42,13 +43,17 @@ data Term a b where
   Or  :: Term a a -> Term a a -> Term a a
 
 
-data Binop = OpPlus | OpFirst | OpRest | OpLink
+data Binop = OpPlus  | OpMult | OpLink
+data Unop  = OpFirst | OpRest
 
 instance Show Binop where
   show OpPlus  = "+"
+  show OpMult  = "*"
+  show OpLink  = "link"
+
+instance Show Unop where
   show OpFirst = "first"
   show OpRest  = "rest"
-  show OpLink  = "link"
 
 type ClosedTerm = Term () ()
 
@@ -59,191 +64,158 @@ data Fresh = forall b. Fresh (forall a. OpenTerm a b)
 
 {- Interpretation of Terms -}
 
-type Interp v s r a b = Env v s a -> (r a b, Env v s b)
+type Interp v s r a b = Env v s a -> (r, Env v s b)
 
-type SimpleInterp v s r a b = Env v s a -> (r, Env v s b)
-
-joinInterp :: (r a b -> r a c -> r a (Join b c))
-        -> Interp v s r a b
-        -> Interp v s r a c
-        -> Interp v s r a (Join b c)
+joinInterp :: (r1 -> r2 -> r3)
+              -> Interp v s r1 a b
+              -> Interp v s r2 a c
+              -> Interp v s r3 a (Join b c)
 joinInterp f i1 i2 env =
   let (r1, env1) = i1 env
       (r2, env2) = i2 (setState env (getState env1)) in
   (f r1 r2, joinEnv env1 env2)
 
 
-data Interpretation v s r = Interpretation {
-  iDecl :: forall a b. Decl a b -> Env v s a -> (r a b, Env v s b),
-  iRefn :: forall a.   Refn a   -> v -> r a a,
-  iExpt :: forall a b. Export a b -> Env v s a -> (r a b, Env v s b),
-  iImpt :: forall a b. Import a b -> Env v s a -> (r a b, Env v s b),
-  
-  iLetModule :: forall a b c. r b c -> r a b -> r c c -> r a a,
-  iUseModule :: forall a b.   r a b -> r (Join a b) (Join a b) -> r a a,
-  
-  iClosed :: forall a.     r () () -> r a a,
-  iRight  :: forall a b c. r b c -> r (Pair a b) (Pair a c),
-  iLeft   :: forall a b c. r a b -> r (Pair a c) (Pair b c),
-  iWrapCtx :: forall a b c. r (Pair () a) (Pair c b) -> r a b,
-  
-  iNum    :: forall a.     Int -> r a a,
-  iBinop  :: forall a.     Binop -> r a a -> r a a -> r a a,
-  iApply  :: forall a.     r a a -> r a a -> r a a,
-  iLambda :: forall a b.   r a b -> r b b -> r a a,
-  iFunc   :: forall a b c. r a b -> r b c -> r c c -> r a b,
-  iMLink  :: forall a b c. r a b -> r a c -> r a (Join b c),
-  iIf     :: forall a.     r a a -> r a a -> r a a -> r a a,
-  iSeq    :: forall a b c. r a b -> r b c -> r a c,
+iRefn :: (v -> r)
+         -> Refn a
+         -> Interp v s r a a
+iRefn ret r env = (ret (find r env), env)
 
-  iLet    :: forall a b. r a b -> r a a -> r b b -> r a a,
-  iOr     :: forall a.   r a a -> r a a -> r a a
-}
+iLetModule :: (r1 -> r2 -> r3 -> r4)
+              -> Interp v s r1 b c
+              -> Interp v s r2 a b
+              -> Interp v s r3 c c
+              -> Interp v s r4 a a
+iLetModule ret ex mod body env =
+  let (mod',  envMod)  = mod env
+      (ex',   envEx)   = ex envMod
+      (body', envBody) = body envEx in
+  (ret ex' mod' body', env)
 
+iUseModule :: (r1 -> r2 -> r3)
+              -> Interp v s r1 a b
+              -> Interp v s r2 (Join a b) (Join a b)
+              -> Interp v s r3 a a
+iUseModule ret im body env =
+  let (im', envIm) = im env
+      (body', _)   = body (joinEnv env envIm) in
+  (ret im' body', env)
 
-interpret :: forall v s r p q.
-             Interpretation v s r -> Term p q -> Env v s p -> r p q
-interpret i t env = run t env where
-  run :: Term a b -> Env v s a -> r a b
-  run t e = fst (interp t e)
+iClosed :: (r1 -> r2)
+           -> Interp v s r1 () ()
+           -> Interp v s r2 a a
+iClosed ret t env =
+  let (r, env') = t (clearEnv env) in
+  (ret r, env)
   
-  interp :: Term a b -> Interp v s r a b
-  interp (Decl d) = iDecl i d
-  interp (Refn r) = \env -> (iRefn i r (find r env), env)
-  interp (Export ex) = iExpt i ex
-  interp (Import im) = iImpt i im
+iRight :: (r1 -> r2)
+          -> Interp v s r1 b c
+          -> Interp v s r2 (Pair a b) (Pair a c)
+iRight ret t env =
+  let (t', env') = runRightEnv t env in
+  (ret t', env')
 
-  interp (LetModule ex mod body) = \env ->
-    let (mod', envMod)   = interp mod env
-        (ex',  envEx)    = interp ex envMod
-        (body', envBody) = interp body envEx in
-    (iLetModule i ex' mod' body', env)
-  interp (UseModule im body) = \env ->
-    let (im', envIm) = interp im env
-        (body', _)   = interp body (joinEnv env envIm) in
-    (iUseModule i im' body', env)
-  
-  interp (Closed t) = \env ->
-    let (r, env') = interp t (clearEnv env) in
-    (iClosed i r, env)
-  interp (RightT t) = \env ->
-    let (r, env') = runRightEnv (interp t) env in
-    (iRight i r, env')
-  interp (LeftT t) = \env ->
-    let (r, env') = runLeftEnv (interp t) env in
-    (iLeft i r, env')
-  interp (WrapCtx t) = \env ->
-    let (r, env') = interp t (liftRightEnv env) in
-    (iWrapCtx i r, lowerRightEnv env')
-  
-  interp (Num n) = \env ->
-    (iNum i n, env)
-  interp (Binop op a b) = \env ->
-    (iBinop i op (run a env) (run b env), env)
-    
-  interp (Apply a b) = \env ->
-    (iApply i (run a env) (run b env), env)
-  interp (Lambda x b) = \env ->
-    let (x', envx) = interp x env
-        (b', _)    = interp b envx in
-    (iLambda i x' b', env)
-  interp (MLink a b) =
-    joinInterp (iMLink i)  (interp a) (interp b)
-  interp (Or a b) = \env ->
-    (iOr i (run a env) (run b env), env)
-  interp (If a b c)   = \env ->
-    (iIf i (run a env) (run b env) (run c env), env)
-  interp (Func f x b) = \env ->
-    let (f', envf) = interp f env
-        (x', envx) = interp x envf
-        (b', _)    = interp b envx in
-    (iFunc i f' x' b', envf)
-  interp (Seq a b) = \env ->
-    let (a', enva) = interp a env
-        (b', envb) = interp b enva in
-    (iSeq i a' b', envb)
-  interp (Let x a b) = \env ->
-    let (x', envx) = interp x env
-        (a', _)    = interp a env
-        (b', _)    = interp b envx in
-    (iLet i x' a' b', env)
+iLeft :: (r1 -> r2)
+         -> Interp v s r1 a b
+         -> Interp v s r2 (Pair a c) (Pair b c)
+iLeft ret t env =
+  let (t', env') = runLeftEnv t env in
+  (ret t', env')
 
+iWrapCtx :: (r1 -> r2)
+            -> Interp v s r1 (Pair () a) (Pair c b)
+            -> Interp v s r2 a b
+iWrapCtx ret t env =
+  let (t', env') = t (liftRightEnv env) in
+  (ret t', lowerRightEnv env')
 
--- Most interpretations' return values don't neeed to be
--- parameterized over scope variables.
+iNum :: (Int -> r)
+        -> Int
+        -> Interp v s r a a
+iNum ret n env = (ret n, env)
 
-data SimpleInterpretation v s r = SimpleInterpretation {
-  sDecl :: forall a b. Decl a b -> Env v s a -> (r, Env v s b),
-  sRefn :: forall a.   Refn a   -> v -> r,
-  sExpt :: forall a b. Export a b -> Env v s a -> (r, Env v s b),
-  sImpt :: forall a b. Import a b -> Env v s a -> (r, Env v s b),
-  
-  sLetModule :: r -> r -> r -> r,
-  sUseModule :: r -> r -> r,
-  
-  sNum    :: Int -> r,
-  sBinop  :: Binop -> r -> r -> r,
-  
-  sApply  :: r -> r -> r,
-  sLambda :: r -> r -> r,
-  sFunc   :: r -> r -> r -> r,
-  sMLink  :: r -> r -> r,
-  sIf     :: r -> r -> r -> r,
-  sSeq    :: r -> r -> r,
-  
-  sLet    :: r -> r -> r -> r,
-  sOr     :: r -> r -> r
-}
+iUnop :: (op -> r1 -> r2)
+         -> op
+         -> Interp v s r1 a a
+         -> Interp v s r2 a a
+iUnop ret op arg env =
+  (ret op (fst $ arg env), env)
 
+iBinop :: (op -> r1 -> r2 -> r3)
+          -> op
+          -> Interp v s r1 a a
+          -> Interp v s r2 a a
+          -> Interp v s r3 a a
+iBinop ret op arg1 arg2 env =
+  (ret op (fst $ arg1 env) (fst $ arg2 env), env)
 
-newtype SimpleResult r a b = SimpleResult r
+iApply :: (r1 -> r2 -> r3)
+          -> Interp v s r1 a a
+          -> Interp v s r2 a a
+          -> Interp v s r3 a a
+iApply ret fun args env =
+  (ret (fst $ fun env) (fst $ args env), env)
 
-liftSimpleInterpretation :: SimpleInterpretation v s r
-                         -> Interpretation v s (SimpleResult r)
-liftSimpleInterpretation i = Interpretation {
-  iDecl = \d env -> let (r, env') = sDecl i d env in
-   (SimpleResult r, env'),
-  iRefn = \r v -> SimpleResult (sRefn i r v),
-  iExpt = \ex env -> let (r, env') = sExpt i ex env in
-   (SimpleResult r, env'),
-  iImpt = \im env -> let (r, env') = sImpt i im env in
-   (SimpleResult r, env'),
-  
-  iClosed  = lift0,
-  iLeft    = lift0,
-  iRight   = lift0,
-  iWrapCtx = lift0,
-  
-  iLetModule = lift3 (sLetModule i),
-  iUseModule = lift2 (sUseModule i),
-  
-  iNum       = \n -> SimpleResult (sNum i n),
-  iBinop     = \op -> lift2 (sBinop i op),
-  iApply     = lift2 (sApply i),
-  iLambda    = lift2 (sLambda i),
-  iFunc      = lift3 (sFunc i),
-  iMLink     = lift2 (sMLink i),
-  iIf        = lift3 (sIf i),
-  iSeq       = lift2 (sSeq i),  
-  
-  iLet       = lift3 (sLet i),
-  iOr        = lift2 (sOr i)
-  }
-  where
-    lift0 (SimpleResult a) = SimpleResult a
-    lift1 f (SimpleResult a) = SimpleResult (f a)
-    lift2 f (SimpleResult a) (SimpleResult b) = SimpleResult (f a b)
-    lift3 f (SimpleResult a) (SimpleResult b) (SimpleResult c) =
-      SimpleResult (f a b c)
+iLambda :: (r1 -> r2 -> r3)
+           -> Interp v s r1 a b
+           -> Interp v s r2 b b
+           -> Interp v s r3 a a
+iLambda ret x b env =
+  let (x', envX) = x env
+      (b', _)    = b envX in
+  (ret x' b', env)
 
-simpleInterpret :: forall v s r p q.
-                   SimpleInterpretation v s r
-                   -> Term p q
-                   -> Env v s p
-                   -> r
-simpleInterpret i t e =
-  let SimpleResult r = interpret (liftSimpleInterpretation i) t e in
-  r
+iOr :: (r1 -> r2 -> r3)
+       -> Interp v s r1 a a
+       -> Interp v s r2 a a
+       -> Interp v s r3 a a
+iOr ret a b env =
+  (ret (fst $ a env) (fst $ b env), env)
+
+iIf :: (r1 -> r2 -> r3 -> r4)
+       -> Interp v s r1 a a
+       -> Interp v s r2 a a
+       -> Interp v s r3 a a
+       -> Interp v s r4 a a
+iIf ret a b c env =
+  (ret (fst $ a env) (fst $ b env) (fst $ c env), env)
+
+iMLink :: (r1 -> r2 -> r3)
+          -> Interp v s r1 a b
+          -> Interp v s r2 a c
+          -> Interp v s r3 a (Join b c)
+iMLink ret a b = joinInterp ret a b
+
+iFunc :: (r1 -> r2 -> r3 -> r4)
+         -> Interp v s r1 a b
+         -> Interp v s r2 b c
+         -> Interp v s r3 c c
+         -> Interp v s r4 a b
+iFunc ret f x b env =  
+  let (f', envF) = f env
+      (x', envX) = x envF
+      (b', _)    = b envX in
+  (ret f' x' b', envF)
+
+iSeq :: (r1 -> r2 -> r3)
+        -> Interp v s r1 a b
+        -> Interp v s r2 b c
+        -> Interp v s r3 a c
+iSeq ret a b env =
+  let (a', envA) = a env
+      (b', envB) = b envA in
+  (ret a' b', envB)
+
+iLet :: (r1 -> r2 -> r3 -> r4)
+        -> Interp v s r1 a b
+        -> Interp v s r2 a a
+        -> Interp v s r3 b b
+        -> Interp v s r4 a a
+iLet ret x a b env =
+  let (x', envX) = x env
+      (a', _)    = a env
+      (b', _)    = b envX in
+  (ret x' a' b', env)
 
 
 {- Term & Context Construction -}
@@ -292,10 +264,10 @@ tImport name = return $
         Right (im, s') -> (Import im, s')
         Left err       -> error (show err)
 
-tLetModule ex mod body s =
+tLetModule ex mod body s = do
   let (mod', sMod) = mod s
       (ex',  sEx)  = ex sMod
-      (body', _)   = body sEx in
+      (body', _)   = body sEx
   (LetModule ex' mod' body', s)
 
 tUseModule im body s =
@@ -324,6 +296,7 @@ tIf    a b c s = (If    (fst $ a s) (fst $ b s) (fst $ c s), s)
 
 tNum n s = (Num n, s)
 
+tUnop  op a s   = (Unop op (fst $ a s), s)
 tBinop op a b s = (Binop op (fst $ a s) (fst $ b s), s)
 
 tLet x a b s =
