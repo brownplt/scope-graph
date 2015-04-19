@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs, FlexibleInstances #-}
 
 module Lang where
 
@@ -10,8 +10,8 @@ import Data.Char (ord, chr)
 subst :: Env (Maybe ClosedTerm) () a -> Term a b -> Term a b
 subst env t = interpret interp_subst t env
 
-interp_subst :: Interpreter (Maybe ClosedTerm) () Term
-interp_subst = Interpreter {
+interp_subst :: Interpretation (Maybe ClosedTerm) () Term
+interp_subst = Interpretation {
   iDecl = \d env -> (Decl d, bind d Nothing env),
   iRefn = \r v ->
     case v of
@@ -25,24 +25,75 @@ interp_subst = Interpreter {
   iRight   = RightT,
   iWrapCtx = WrapCtx,
   
+  iNum       = Num,
+  iBinop     = Binop,
   iLetModule = LetModule,
   iUseModule = UseModule,
   iLambda    = Lambda,
   iApply     = Apply,
   iIf        = If,
   iFunc      = Func,
-  iParam     = Param,
+  iMLink     = MLink,
   iSeq       = Seq,
   iLet       = Let,
-  iOr        = Or,
-  iNum       = Num
+  iOr        = Or
   }
+
+
+data Value where
+  VNum :: Int -> Value
+  VLink :: Value -> Value -> Value
+  VClosure :: Pattern a b -> Term b c -> Env Value () a -> Value
+
+data Pattern a b where
+  PDecl :: Decl a b -> Pattern a b
+  PLink :: Pattern a b -> Pattern a c -> Pattern a (Join b c)
+
+eval :: Term a b -> Env Value () a -> Value
+eval t env = fst (evalTerm t env)
+
+evalTerm :: Term a b -> SimpleInterp Value () Value a b
+evalTerm (Refn r) env = (find r env, env)
+evalTerm (Num n)  env = (VNum n, env)
+evalTerm (Binop op a b) env =
+  (applyBinop op (eval a env) (eval b env), env)
+evalTerm (Lambda x b) env =
+  (VClosure (evalPatt x) b env, env)
+evalTerm (Apply f a) env =
+  case eval f env of
+    VClosure x b env' ->
+      let a' = eval a env
+          (b', _) = evalTerm b (bindPatt x a' env') in
+      (b', env)
+
+applyBinop :: Binop -> Value -> Value -> Value                            
+applyBinop OpPlus (VNum a) (VNum b) = VNum (a + b)
+
+{-
+  sApply  = \a b   -> "(" ++ a ++ " " ++ b ++ ")",
+  sIf     = \a b c -> "(if " ++ a ++ " " ++ b ++ " " ++ c ++ ")",
+  sFunc   = \f x b -> "(fun (" ++ f ++ " " ++ x ++ ") " ++ b ++ ")",
+  sMLink  = \a b   -> a ++ " " ++ b,
+  sSeq    = \a b   -> a ++ " " ++ b,
+  sLet    = \x a b -> "(let " ++ x ++ " " ++ a ++ " " ++ b ++ ")",
+  sOr     = \a b   -> "(or " ++ a ++ " " ++ b ++ ")"
+-}
+
+evalPatt :: Term a b -> Pattern a b
+evalPatt (Decl d) = PDecl d
+evalPatt (MLink p1 p2) = PLink (evalPatt p1) (evalPatt p2)
+
+bindPatt :: Pattern a b -> Value -> Env Value s a -> Env Value s b
+bindPatt (PDecl d) v env = bind d v env
+bindPatt (PLink p q) (VLink a b) env =
+  joinEnv (bindPatt p a env) (bindPatt q b env)
+bindPatt _ _ env = error "Match error"
 
 
 data ShowState = ShowState Char String -- next var, current module name
 
-interp_show :: SimpleInterpreter String ShowState String
-interp_show = SimpleInterpreter {
+interp_show :: SimpleInterpretation String ShowState String
+interp_show = SimpleInterpretation {
   sDecl = \d env ->
      let (v, newEnv) = nextName env
          name = [v] in
@@ -59,15 +110,17 @@ interp_show = SimpleInterpreter {
     "(let-module (" ++ ex ++ ") " ++ mod ++ " " ++ body ++ ")",
   sUseModule = \im body ->
     "(use-module (" ++ im ++ ") " ++ body ++ ")",
+  
+  sNum    = \n     -> show n,
+  sBinop  = \o a b -> "(" ++ show o ++ " " ++ a ++ " " ++ b ++ ")",
   sLambda = \x b   -> "(lam " ++ x ++ ". " ++ b ++ ")",
   sApply  = \a b   -> "(" ++ a ++ " " ++ b ++ ")",
   sIf     = \a b c -> "(if " ++ a ++ " " ++ b ++ " " ++ c ++ ")",
   sFunc   = \f x b -> "(fun (" ++ f ++ " " ++ x ++ ") " ++ b ++ ")",
-  sParam  = \a b   -> a ++ " " ++ b,
+  sMLink  = \a b   -> a ++ " " ++ b,
   sSeq    = \a b   -> a ++ " " ++ b,
   sLet    = \x a b -> "(let " ++ x ++ " " ++ a ++ " " ++ b ++ ")",
-  sOr     = \a b   -> "(or " ++ a ++ " " ++ b ++ ")",
-  sNum    = \n     -> show n
+  sOr     = \a b   -> "(or " ++ a ++ " " ++ b ++ ")"
   }
   where
     nextName :: Env String ShowState a -> (Char, Env String ShowState a)

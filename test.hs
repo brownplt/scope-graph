@@ -29,7 +29,7 @@ t_apply = do
   Fresh dz <- decl "z"
   makeTerm $
     tLambda dx
-         (tLambda (tParam dy dz)
+         (tLambda (tMLink dy dz)
                (tApply (refn "x") (refn "y")))
 
 t_let :: IO ClosedTerm
@@ -81,7 +81,7 @@ desugar (LeftT t )   = liftM  LeftT   (desugar t)
 desugar (WrapCtx t)  = liftM  WrapCtx (desugar t)
 desugar (Apply a b)  = liftM2 Apply   (desugar a) (desugar b)
 desugar (Lambda x b) = liftM2 Lambda  (desugar x) (desugar b)
-desugar (Param a b)  = liftM2 Param   (desugar a) (desugar b)
+desugar (MLink a b)  = liftM2 MLink   (desugar a) (desugar b)
 desugar (If a b c)   = liftM3 If      (desugar a) (desugar b) (desugar c)
 desugar (Let x a b)  =
   liftM2 Apply (liftM2 Lambda (desugar x) (desugar b)) (desugar a)

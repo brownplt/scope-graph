@@ -1,14 +1,14 @@
-{-# LANGUAGE GADTs, Rank2Types, MultiParamTypeClasses #-}
+{-# LANGUAGE GADTs, Rank2Types #-}
 
 module Scope (
   {- Making Variables -}
   FreshDecl (FreshDecl), Decl, Refn, newDecl, newRefn,
   {- Scope -}
-  Scope, Scoped, emptyScope, Pair, Join, join,
+  Scope, Scoped, emptyScope, joinScope, Join, Pair,
   {- Environments -}
   Env, emptyEnv, bind, find,
   runLeftEnv, runRightEnv, liftLeftEnv, liftRightEnv,
-  lowerLeftEnv, lowerRightEnv, clearEnv,
+  lowerLeftEnv, lowerRightEnv, clearEnv, joinEnv,
   {- Modules -}
   Import, Export, newImport, newExport, inport, export,
   FreshExport (FreshExport), FreshImport (FreshImport),
@@ -105,31 +105,19 @@ instance Eq ScopeBinding where
 
 type Scoped a b t = Scope a -> (t, Scope b)
 
+data Join a b
+
 emptyScope :: Scope ()
 emptyScope = Scope []
 
-
-{- Join -}
-
-class Joinable e where
-  join :: e a -> e b -> e (Join a b)
-
-data Join a b
-
-instance Joinable Scope where
-  -- todo: What about join of Paired scopes?
-  join (Scope scope1) (Scope scope2) =
-    let (suffix, diff1, diff2) = commonSuffix scope1 scope2 in
-    let add (name, bind) =
-          case lookup name diff2 of
-            Nothing -> (name, bind)
-            Just _  -> (name, SBAmbig) in
-    Scope $ (map add diff1) ++ diff2 ++ suffix
-
-instance Joinable (Env v s) where
-  -- TODO
-  join (Env st1 varEnv1 modEnv1) (Env _ varEnv2 modEnv2) =
-    Env st1 (Map.union varEnv1 varEnv2) (Map.union modEnv1 modEnv2)
+joinScope :: Scope a -> Scope b -> Scope (Join a b)
+joinScope (Scope scope1) (Scope scope2) =
+  let (suffix, diff1, diff2) = commonSuffix scope1 scope2 in
+  let add (name, bind) =
+        case lookup name diff2 of
+          Nothing -> (name, bind)
+          Just _  -> (name, SBAmbig) in
+  Scope $ (map add diff1) ++ diff2 ++ suffix
 
 
 {- Environments -}
@@ -145,6 +133,10 @@ getState (Env s _ _) = s
 
 setState :: Env v s a -> s -> Env v s a
 setState (Env _ varEnv modEnv) st = Env st varEnv modEnv
+
+joinEnv :: Env v s a -> Env v s b -> Env v s (Join a b)
+joinEnv (Env st1 varEnv1 modEnv1) (Env _ varEnv2 modEnv2) =
+  Env st1 (Map.union varEnv1 varEnv2) (Map.union modEnv1 modEnv2)
 
 runLeftEnv :: (Env v s a -> (t, Env v s a'))
               -> Env v s (Pair a b)
@@ -190,9 +182,9 @@ unhygienicRefnName (Refn name _) = name
 
 {- Binding Errors -}
 
-data BindError = UnboundError String
-               | AmbiguousError String
-               | BindingTypeError String
+data BindError = UnboundError Name
+               | AmbiguousError Name
+               | BindingTypeError Name
 
 instance Show BindError where
   show (UnboundError name)   = "Unbound identifier: " ++ name

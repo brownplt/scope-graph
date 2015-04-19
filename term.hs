@@ -1,11 +1,10 @@
 {-# LANGUAGE GADTs, Rank2Types, ScopedTypeVariables #-}
 
 -- TODO: Change type of terms to Term a ()?
--- TODO: Remove kind signatures?
 
 module Term where
 
-import Scope hiding (bind, find, emptyEnv, Env,
+import Scope hiding (bind, find, emptyEnv, joinEnv, Env, Decl, Join,
                      FreshImport (FreshImport), FreshExport (FreshExport),
                      getState, setState, inport, export)
 import qualified Scope as S
@@ -29,18 +28,27 @@ data Term a b where
   WrapCtx :: Term (Pair () a) (Pair c b) -> Term a b
 
   {- Core Language -}
+  Num    :: Int -> Term a a
+  Binop  :: Binop -> Term a a -> Term a a -> Term a a
   Apply  :: Term a a -> Term a a -> Term a a
   Lambda :: Term a b -> Term b b -> Term a a
   Func   :: Term a b -> Term b c -> Term c c -> Term a b
-  Param  :: Term a b -> Term a c -> Term a (Join b c)
+  MLink :: Term a b -> Term a c -> Term a (Join b c)
   If     :: Term a a -> Term a a -> Term a a -> Term a a
   Seq    :: Term a b -> Term b c -> Term a c
-  Num    :: Int -> Term a a
 
   {- Syntactic Sugar -}
   Let :: Term a b -> Term a a -> Term b b -> Term a a
   Or  :: Term a a -> Term a a -> Term a a
 
+
+data Binop = OpPlus | OpFirst | OpRest | OpLink
+
+instance Show Binop where
+  show OpPlus  = "+"
+  show OpFirst = "first"
+  show OpRest  = "rest"
+  show OpLink  = "link"
 
 type ClosedTerm = Term () ()
 
@@ -53,6 +61,8 @@ data Fresh = forall b. Fresh (forall a. OpenTerm a b)
 
 type Interp v s r a b = Env v s a -> (r a b, Env v s b)
 
+type SimpleInterp v s r a b = Env v s a -> (r, Env v s b)
+
 joinInterp :: (r a b -> r a c -> r a (Join b c))
         -> Interp v s r a b
         -> Interp v s r a c
@@ -60,10 +70,10 @@ joinInterp :: (r a b -> r a c -> r a (Join b c))
 joinInterp f i1 i2 env =
   let (r1, env1) = i1 env
       (r2, env2) = i2 (setState env (getState env1)) in
-  (f r1 r2, join env1 env2)
+  (f r1 r2, joinEnv env1 env2)
 
 
-data Interpreter v s r = Interpreter {
+data Interpretation v s r = Interpretation {
   iDecl :: forall a b. Decl a b -> Env v s a -> (r a b, Env v s b),
   iRefn :: forall a.   Refn a   -> v -> r a a,
   iExpt :: forall a b. Export a b -> Env v s a -> (r a b, Env v s b),
@@ -77,13 +87,14 @@ data Interpreter v s r = Interpreter {
   iLeft   :: forall a b c. r a b -> r (Pair a c) (Pair b c),
   iWrapCtx :: forall a b c. r (Pair () a) (Pair c b) -> r a b,
   
+  iNum    :: forall a.     Int -> r a a,
+  iBinop  :: forall a.     Binop -> r a a -> r a a -> r a a,
   iApply  :: forall a.     r a a -> r a a -> r a a,
   iLambda :: forall a b.   r a b -> r b b -> r a a,
   iFunc   :: forall a b c. r a b -> r b c -> r c c -> r a b,
-  iParam  :: forall a b c. r a b -> r a c -> r a (Join b c),
+  iMLink  :: forall a b c. r a b -> r a c -> r a (Join b c),
   iIf     :: forall a.     r a a -> r a a -> r a a -> r a a,
   iSeq    :: forall a b c. r a b -> r b c -> r a c,
-  iNum    :: forall a.   Int -> r a a,
 
   iLet    :: forall a b. r a b -> r a a -> r b b -> r a a,
   iOr     :: forall a.   r a a -> r a a -> r a a
@@ -91,7 +102,7 @@ data Interpreter v s r = Interpreter {
 
 
 interpret :: forall v s r p q.
-             Interpreter v s r -> Term p q -> Env v s p -> r p q
+             Interpretation v s r -> Term p q -> Env v s p -> r p q
 interpret i t env = run t env where
   run :: Term a b -> Env v s a -> r a b
   run t e = fst (interp t e)
@@ -101,6 +112,16 @@ interpret i t env = run t env where
   interp (Refn r) = \env -> (iRefn i r (find r env), env)
   interp (Export ex) = iExpt i ex
   interp (Import im) = iImpt i im
+
+  interp (LetModule ex mod body) = \env ->
+    let (mod', envMod)   = interp mod env
+        (ex',  envEx)    = interp ex envMod
+        (body', envBody) = interp body envEx in
+    (iLetModule i ex' mod' body', env)
+  interp (UseModule im body) = \env ->
+    let (im', envIm) = interp im env
+        (body', _)   = interp body (joinEnv env envIm) in
+    (iUseModule i im' body', env)
   
   interp (Closed t) = \env ->
     let (r, env') = interp t (clearEnv env) in
@@ -115,18 +136,23 @@ interpret i t env = run t env where
     let (r, env') = interp t (liftRightEnv env) in
     (iWrapCtx i r, lowerRightEnv env')
   
+  interp (Num n) = \env ->
+    (iNum i n, env)
+  interp (Binop op a b) = \env ->
+    (iBinop i op (run a env) (run b env), env)
+    
   interp (Apply a b) = \env ->
     (iApply i (run a env) (run b env), env)
   interp (Lambda x b) = \env ->
     let (x', envx) = interp x env
         (b', _)    = interp b envx in
     (iLambda i x' b', env)
-  interp (Param a b)  = joinInterp (iParam i)  (interp a) (interp b)
+  interp (MLink a b) =
+    joinInterp (iMLink i)  (interp a) (interp b)
   interp (Or a b) = \env ->
     (iOr i (run a env) (run b env), env)
   interp (If a b c)   = \env ->
     (iIf i (run a env) (run b env) (run c env), env)
-  interp (Num n) = \env -> (iNum i n, env)
   interp (Func f x b) = \env ->
     let (f', envf) = interp f env
         (x', envx) = interp x envf
@@ -142,21 +168,11 @@ interpret i t env = run t env where
         (b', _)    = interp b envx in
     (iLet i x' a' b', env)
 
-  interp (LetModule ex mod body) = \env ->
-    let (mod', envMod)   = interp mod env
-        (ex',  envEx)    = interp ex envMod
-        (body', envBody) = interp body envEx in
-    (iLetModule i ex' mod' body', env)
-  interp (UseModule im body) = \env ->
-    let (im', envIm) = interp im env
-        (body', _)   = interp body (join env envIm) in
-    (iUseModule i im' body', env)
-
 
 -- Most interpretations' return values don't neeed to be
 -- parameterized over scope variables.
 
-data SimpleInterpreter v s r = SimpleInterpreter {
+data SimpleInterpretation v s r = SimpleInterpretation {
   sDecl :: forall a b. Decl a b -> Env v s a -> (r, Env v s b),
   sRefn :: forall a.   Refn a   -> v -> r,
   sExpt :: forall a b. Export a b -> Env v s a -> (r, Env v s b),
@@ -165,13 +181,15 @@ data SimpleInterpreter v s r = SimpleInterpreter {
   sLetModule :: r -> r -> r -> r,
   sUseModule :: r -> r -> r,
   
+  sNum    :: Int -> r,
+  sBinop  :: Binop -> r -> r -> r,
+  
   sApply  :: r -> r -> r,
   sLambda :: r -> r -> r,
   sFunc   :: r -> r -> r -> r,
-  sParam  :: r -> r -> r,
+  sMLink  :: r -> r -> r,
   sIf     :: r -> r -> r -> r,
   sSeq    :: r -> r -> r,
-  sNum    :: Int -> r,
   
   sLet    :: r -> r -> r -> r,
   sOr     :: r -> r -> r
@@ -180,9 +198,9 @@ data SimpleInterpreter v s r = SimpleInterpreter {
 
 newtype SimpleResult r a b = SimpleResult r
 
-liftSimpleInterpreter :: SimpleInterpreter v s r
-                         -> Interpreter v s (SimpleResult r)
-liftSimpleInterpreter i = Interpreter {
+liftSimpleInterpretation :: SimpleInterpretation v s r
+                         -> Interpretation v s (SimpleResult r)
+liftSimpleInterpretation i = Interpretation {
   iDecl = \d env -> let (r, env') = sDecl i d env in
    (SimpleResult r, env'),
   iRefn = \r v -> SimpleResult (sRefn i r v),
@@ -199,13 +217,14 @@ liftSimpleInterpreter i = Interpreter {
   iLetModule = lift3 (sLetModule i),
   iUseModule = lift2 (sUseModule i),
   
+  iNum       = \n -> SimpleResult (sNum i n),
+  iBinop     = \op -> lift2 (sBinop i op),
   iApply     = lift2 (sApply i),
   iLambda    = lift2 (sLambda i),
   iFunc      = lift3 (sFunc i),
-  iParam     = lift2 (sParam i),
+  iMLink     = lift2 (sMLink i),
   iIf        = lift3 (sIf i),
-  iSeq       = lift2 (sSeq i),
-  iNum       = \n -> SimpleResult (sNum i n),
+  iSeq       = lift2 (sSeq i),  
   
   iLet       = lift3 (sLet i),
   iOr        = lift2 (sOr i)
@@ -218,12 +237,12 @@ liftSimpleInterpreter i = Interpreter {
       SimpleResult (f a b c)
 
 simpleInterpret :: forall v s r p q.
-                   SimpleInterpreter v s r
+                   SimpleInterpretation v s r
                    -> Term p q
                    -> Env v s p
                    -> r
 simpleInterpret i t e =
-  let SimpleResult r = interpret (liftSimpleInterpreter i) t e in
+  let SimpleResult r = interpret (liftSimpleInterpretation i) t e in
   r
 
 
@@ -281,13 +300,13 @@ tLetModule ex mod body s =
 
 tUseModule im body s =
   let (im', sIm)     = im s
-      (body', sBody) = body (join s sIm) in
+      (body', sBody) = body (joinScope s sIm) in
   (UseModule im' body', sIm)
 
-tParam ab ac sa =
+tMLink ab ac sa =
   let (b, sb) = ab sa
       (c, sc) = ac sa in
-  (Param b c, join sb sc)
+  (MLink b c, joinScope sb sc)
 
 tSeq ab bc sa =
   let (b, sb) = ab sa
@@ -304,6 +323,8 @@ tOr    a b s =   (Or    (fst $ a s) (fst $ b s), s)
 tIf    a b c s = (If    (fst $ a s) (fst $ b s) (fst $ c s), s)
 
 tNum n s = (Num n, s)
+
+tBinop op a b s = (Binop op (fst $ a s) (fst $ b s), s)
 
 tLet x a b s =
   let (x', s') = x s
@@ -333,5 +354,12 @@ export = S.export
 getState = S.getState
 setState = S.setState
 
+joinEnv :: Env v s a -> Env v s b -> Env v s (Join a b)
+joinEnv = S.joinEnv
+
 emptyEnv :: s -> Env v s ()
 emptyEnv = S.emptyEnv
+
+type Decl = S.Decl
+
+type Join = S.Join
