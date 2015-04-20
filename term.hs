@@ -18,7 +18,7 @@ data Term a b where
   {- Modules -}
   Export :: Export a b -> Term a b
   Import :: Import a b -> Term a b
-  LetModule :: Term b c -> Term a b -> Term c c -> Term a a
+  DefModule :: Term b c -> Block a b -> Term a c
   UseModule :: Term a b -> Term (Join a b) (Join a b) -> Term a a
 
   {- Magic -}
@@ -33,14 +33,20 @@ data Term a b where
   Binop  :: Binop -> Term a a -> Term a a -> Term a a
   Apply  :: Term a a -> Term a a -> Term a a
   Lambda :: Term a b -> Term b b -> Term a a
-  Func   :: Term a b -> Term b c -> Term c c -> Term a b
-  MLink :: Term a b -> Term a c -> Term a (Join b c)
-  If     :: Term a a -> Term a a -> Term a a -> Term a a
-  Seq    :: Term a b -> Term b c -> Term a c
+  Rec    :: Term a b -> Term b b -> Term a a
+  Func   :: Decl a b -> Term b c -> Term c c -> Term a b
+  MLink  :: Term a b -> Term a c -> Term a (Join b c)
+  Block  :: Block a b -> Term a a
+  Define :: Term a b -> Term a a -> Term b b -> Term a b
 
   {- Syntactic Sugar -}
   Let :: Term a b -> Term a a -> Term b b -> Term a a
   Or  :: Term a a -> Term a a -> Term a a
+  If  :: Term a a -> Term a a -> Term a a -> Term a a
+
+data Block a b where
+  Seq :: Term a b -> Block b c -> Block a c
+  End :: Term a b -> Block a b
 
 
 data Binop = OpPlus  | OpMult | OpLink
@@ -81,16 +87,14 @@ iRefn :: (v -> r)
          -> Interp v s r a a
 iRefn ret r env = (ret (find r env), env)
 
-iLetModule :: (r1 -> r2 -> r3 -> r4)
+iDefModule :: (r1 -> r2 -> r3)
               -> Interp v s r1 b c
               -> Interp v s r2 a b
-              -> Interp v s r3 c c
-              -> Interp v s r4 a a
-iLetModule ret ex mod body env =
+              -> Interp v s r3 a c
+iDefModule ret ex mod env =
   let (mod',  envMod)  = mod env
-      (ex',   envEx)   = ex envMod
-      (body', envBody) = body envEx in
-  (ret ex' mod' body', env)
+      (ex',   envEx)   = ex envMod in
+  (ret ex' mod', envEx)
 
 iUseModule :: (r1 -> r2 -> r3)
               -> Interp v s r1 a b
@@ -165,6 +169,15 @@ iLambda ret x b env =
       (b', _)    = b envX in
   (ret x' b', env)
 
+iRec :: (r1 -> r2 -> r3)
+        -> Interp v s r1 a b
+        -> Interp v s r2 b b
+        -> Interp v s r3 a a
+iRec ret x b env =
+  let (x', envX) = x env
+      (b', _)    = b envX in
+  (ret x' b', env)
+
 iOr :: (r1 -> r2 -> r3)
        -> Interp v s r1 a a
        -> Interp v s r2 a a
@@ -206,6 +219,31 @@ iSeq ret a b env =
       (b', envB) = b envA in
   (ret a' b', envB)
 
+iEnd :: (r1 -> r2)
+        -> Interp v s r1 a b
+        -> Interp v s r2 a b
+iEnd ret a env =
+  let (a', envA) = a env in
+  (ret a', envA)
+
+iBlock :: (r1 -> r2)
+          -> Interp v s r1 a b
+          -> Interp v s r2 a a
+iBlock ret a env =
+  let (a', _) = a env in
+  (ret a', env)
+
+iDefine :: (r1 -> r2 -> r3 -> r4)
+           -> Interp v s r1 a b
+           -> Interp v s r2 a a
+           -> Interp v s r3 b b
+           -> Interp v s r4 a b
+iDefine ret x a b env =
+  let (x', envX) = x env
+      (a', _)    = a env
+      (b', _)    = b envX in
+  (ret x' a' b', envX)
+
 iLet :: (r1 -> r2 -> r3 -> r4)
         -> Interp v s r1 a b
         -> Interp v s r2 a a
@@ -222,6 +260,11 @@ iLet ret x a b env =
 
 makeTerm :: Scoped () b (Term a b) -> IO (Term a b)
 makeTerm t = return $ fst $ t $ emptyScope
+
+data FreshTerm = forall b. FreshTerm (Term () b)
+
+makeFreshTerm :: Scoped () b (Term () b) -> IO FreshTerm
+makeFreshTerm t = return $ FreshTerm $ fst $ t emptyScope
 
 type Ctx a b p q =
   Scope a -> (Term (Pair a p) (Pair b q), Scope b)
@@ -264,11 +307,10 @@ tImport name = return $
         Right (im, s') -> (Import im, s')
         Left err       -> error (show err)
 
-tLetModule ex mod body s = do
+tDefModule ex mod s = do
   let (mod', sMod) = mod s
       (ex',  sEx)  = ex sMod
-      (body', _)   = body sEx
-  (LetModule ex' mod' body', s)
+  (DefModule ex' mod', sEx)
 
 tUseModule im body s =
   let (im', sIm)     = im s
@@ -285,10 +327,21 @@ tSeq ab bc sa =
       (c, sc) = bc sb in
   (Seq b c, sc)
 
-tLambda ab bc sa =
+tEnd a s = (End (fst $ a s), s)
+
+tBlock ab sa =
+  let (a, _) = ab sa in
+  (Block a, sa)
+
+tLambda ab bb sa =
   let (b, sb) = ab sa
-      (c, _)  = bc sb in
+      (c, _)  = bb sb in
   (Lambda b c, sa)
+
+tRec ab bb sa =
+  let (b, sb) = ab sa
+      (c, _)  = bb sb in
+  (Rec b c, sa)
 
 tApply a b s =   (Apply (fst $ a s) (fst $ b s), s)
 tOr    a b s =   (Or    (fst $ a s) (fst $ b s), s)
@@ -299,14 +352,20 @@ tNum n s = (Num n, s)
 tUnop  op a s   = (Unop op (fst $ a s), s)
 tBinop op a b s = (Binop op (fst $ a s) (fst $ b s), s)
 
+tDefine x a b s =
+  let (x', sX) = x s
+      (a', _)  = a s
+      (b', _)  = b sX in
+  (Let x' a' b', sX)
+
 tLet x a b s =
   let (x', s') = x s
       (a', _)  = a s
       (b', _)  = b s' in
-  (Let x' a' b', emptyScope)
+  (Let x' a' b', s)
 
 tFunc f x b s =
-  let (f', sf) = f s
+  let (Decl f', sf) = f s
       (x', sx) = x sf
       (b', _)  = b sx in
   (Func f' x' b', sf)

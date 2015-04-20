@@ -4,6 +4,41 @@ import Term
 import Lang
 import Control.Monad (liftM, liftM2, liftM3)
 
+t_factorial :: IO FreshTerm
+t_factorial = do
+  Fresh dF <- decl "f"
+  Fresh dX <- decl "x"
+  let   rF  = refn "f"
+  let   rX  = refn "x"
+  makeFreshTerm $
+    tFunc dF dX (tIf rX
+                 (tBinop OpMult rX (tApply rF (tBinop OpPlus rX (tNum (-1)))))
+                 (tNum 0))
+
+{-
+    sub (Unop op a)       = iUnop      Unop      op      (sub a)
+    sub (Lambda x b)      = iLambda    Lambda    (sub x) (sub b)
+    sub (MLink a b)       = iMLink     MLink     (sub a) (sub b)
+    sub (Let a b c)       = iLet       Let       (sub a) (sub b) (sub c)
+    sub (Or a b)          = iOr        Or        (sub a) (sub b)
+    
+    sub (Seq a b)         = iSeq       Seq       (sub a) (sub b)
+    sub (LetModule a b c) = iLetModule LetModule (sub a) (sub b) (sub c)
+    sub (UseModule a b)   = iUseModule UseModule (sub a) (sub b)
+    
+    sub (Num n)           = iNum       Num       n
+    sub (Binop op a b)    = iBinop     Binop     op      (sub a) (sub b)
+    sub (Apply a b)       = iApply     Apply     (sub a) (sub b)
+    sub (If a b c)        = iIf        If        (sub a) (sub b) (sub c)
+    sub (Func a b c)      = iFunc      Func      (sub a) (sub b) (sub c)
+-}
+
+
+
+
+
+
+
 t_id :: IO ClosedTerm
 t_id = do
   Fresh x <- decl "x"
@@ -55,10 +90,11 @@ t_module = do
   Fresh df       <- decl "f"
   let rf         =  refn "f"
   let rx         =  refn "x"
-  makeTerm $
-    tLetModule ex
-      (tSeq (tFunc df dx rx) (tApply rf (tNum 3)))
-      (tUseModule im rf)
+  makeTerm $ tBlock $
+    tSeq
+      (tDefModule ex
+        (tSeq (tFunc df dx rx) (tEnd (tApply rf (tNum 3)))))
+      (tEnd (tUseModule im rf))
 
 t_subst :: IO ClosedTerm
 t_subst = do
@@ -107,6 +143,7 @@ main = do
   t_module <- t_module
   t_subst <- t_subst
 --  t_open <- t_open
+  
   putTerm t_omega
   putTerm t_apply
   

@@ -76,7 +76,10 @@ bind (Decl name id) v (Env st varEnv modEnv) =
   Env st (Map.insert (name, id) v varEnv) modEnv
 
 find :: Refn a -> Env v s a -> v
-find (Refn name id) (Env _ varEnv _) = (Map.!) varEnv (name, id)
+find (Refn name id) (Env _ varEnv _) =
+  case Map.lookup (name, id) varEnv of
+    Just v -> v
+    Nothing -> error $ "Internal scope error! find " ++ show name
 
 export :: Export a b -> Env v s a -> Env v s b
 export (Export name id) env =
@@ -84,7 +87,9 @@ export (Export name id) env =
 
 inport :: Import a b -> Env v s a -> Env v s b
 inport (Import name id) (Env _ _ modEnv) =
-  castEnv $ (Map.!) modEnv (name, id)
+  case Map.lookup (name, id) modEnv of
+    Just env -> castEnv env
+    Nothing -> error $ "Internal scope error! inport " ++ show name
 
 
 {- Scope -}
