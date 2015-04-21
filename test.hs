@@ -1,19 +1,59 @@
-{-# LANGUAGE GADTs, Rank2Types #-}
+{-# LANGUAGE GADTs #-}
 
 import Term
-import Lang
-import Control.Monad (liftM, liftM2, liftM3)
+import Show
+import Eval
+import Desugar
 
-t_factorial :: IO FreshTerm
-t_factorial = do
-  Fresh dF <- decl "f"
-  Fresh dX <- decl "x"
-  let   rF  = refn "f"
-  let   rX  = refn "x"
-  makeFreshTerm $
-    tFunc dF dX (tIf rX
-                 (tBinop OpMult rX (tApply rF (tBinop OpPlus rX (tNum (-1)))))
-                 (tNum 0))
+tLink a b = tBinop OpLink a b
+
+t_funcs :: IO FreshStmt
+t_funcs = do
+  FreshDecl dFact <- decl "fact"
+  FreshDecl dSum  <- decl "sum"
+  FreshPatt pX    <- pDecl "x"
+  FreshPatt pY    <- pDecl "y"
+  let rX = refn "x"
+      rY = refn "y"
+      rFact = refn "fact"
+      rSum  = refn "sum"
+  return $ makeFreshStmt $
+    tFunc dFact pX (tIf (tBinop OpEq rX (tNum 0))
+                    (tNum 1)
+                    (tBinop OpMult rX
+                     (tApply rFact
+                      (tBinop OpPlus rX (tNum (-1))))))
+    (tFunc dSum pX (tMatch rX
+                    (tCase (tPLink pX pY)
+                       (tBinop OpPlus (tApply rSum rX) (tApply rSum rY))
+                    (tCase pX
+                       rX
+                    (tElse
+                       (tNum 0)))))
+     (tEnd (tBinop OpPlus
+            (tApply rFact (tNum 5))
+            (tApply rSum (tLink (tLink (tNum 3) (tNum 4)) (tNum 5))))))
+
+t_test :: IO ClosedExpr
+t_test = do
+  FreshStmt t_funcs <- t_funcs
+  return (Stmt t_funcs)
+
+putExpr = putStrLn . show
+
+runTest :: IO ClosedExpr -> IO ()
+runTest t = do
+  putStrLn ""
+  t <- t
+  putExpr t
+  t <- desugar t
+  putStrLn "==>"
+  putExpr t
+  putStrLn $ "->* " ++ show (eval t)
+
+main = do
+  runTest t_test
+  
 
 {-
     sub (Unop op a)       = iUnop      Unop      op      (sub a)
@@ -36,53 +76,53 @@ t_factorial = do
 
 
 
+{-
 
 
-
-t_id :: IO ClosedTerm
+t_id :: IO ClosedExpr
 t_id = do
   Fresh x <- decl "x"
-  makeTerm $
+  makeExpr $
     tLambda x (refn "x")
 
-t_omega :: IO ClosedTerm
+t_omega :: IO ClosedExpr
 t_omega = do
   Fresh x <- decl "x"
-  makeTerm $
+  makeExpr $
     tLambda x (tApply (refn "x") (refn "x"))
 
-t_open :: IO ClosedTerm
-t_open = makeTerm $ (refn "x") -- error
+t_open :: IO ClosedExpr
+t_open = makeExpr $ (refn "x") -- error
 
-self_apply :: ClosedTerm -> ClosedTerm
+self_apply :: ClosedExpr -> ClosedExpr
 self_apply t = Apply t t
 
-t_apply :: IO ClosedTerm
+t_apply :: IO ClosedExpr
 t_apply = do
   Fresh dx <- decl "x"
   Fresh dy <- decl "y"
   Fresh dz <- decl "z"
-  makeTerm $
+  makeExpr $
     tLambda dx
          (tLambda (tMLink dy dz)
                (tApply (refn "x") (refn "y")))
 
-t_let :: IO ClosedTerm
+t_let :: IO ClosedExpr
 t_let = do
   Fresh dx <- decl "x"
   Fresh dy <- decl "y"
   t_id <- t_id
-  makeTerm $
+  makeExpr $
     tLet dx (tLambda dy (refn "y")) (refn "x")
 
-t_or :: IO ClosedTerm
+t_or :: IO ClosedExpr
 t_or = do
   Fresh dx <- decl "x"
   let   rx =  refn "x"
-  makeTerm $
+  makeExpr $
     tLambda dx (tOr rx rx)
 
-t_module :: IO ClosedTerm
+t_module :: IO ClosedExpr
 t_module = do
   Fresh ex <- tExport "x"
   Fresh im <- tImport "x"
@@ -90,49 +130,19 @@ t_module = do
   Fresh df       <- decl "f"
   let rf         =  refn "f"
   let rx         =  refn "x"
-  makeTerm $ tBlock $
+  makeExpr $ tBlock $
     tSeq
       (tDefModule ex
         (tSeq (tFunc df dx rx) (tEnd (tApply rf (tNum 3)))))
-      (tEnd (tUseModule im rf))
+      (tEnd (sUseMod im rf))
 
-t_subst :: IO ClosedTerm
+t_subst :: IO ClosedExpr
 t_subst = do
   t_omega <- t_omega
   case t_omega of
-    Lambda (Decl d) b -> do
+    Lambda (PDecl d) b -> do
       let env = bind d (Just t_omega) (emptyEnv ())
-      return $ Lambda (Decl d) (subst env b)
-
-desugar_let :: Term a b -> Term a b
-desugar_let (Let x a b) = Apply (Lambda x b) a
---desugar_let (Let x a b) = Apply (Lambda x a) b -- error!
-
-desugar :: Term a b -> IO (Term a b)
-desugar (Decl x)     = return $ Decl x
-desugar (Refn x)     = return $ Refn x
-desugar (Closed t)   = liftM  Closed  (desugar t)
-desugar (RightT t)   = liftM  RightT  (desugar t)
-desugar (LeftT t )   = liftM  LeftT   (desugar t)
-desugar (WrapCtx t)  = liftM  WrapCtx (desugar t)
-desugar (Apply a b)  = liftM2 Apply   (desugar a) (desugar b)
-desugar (Lambda x b) = liftM2 Lambda  (desugar x) (desugar b)
-desugar (MLink a b)  = liftM2 MLink   (desugar a) (desugar b)
-desugar (If a b c)   = liftM3 If      (desugar a) (desugar b) (desugar c)
-desugar (Let x a b)  =
-  liftM2 Apply (liftM2 Lambda (desugar x) (desugar b)) (desugar a)
-desugar (Or a b) = do
-  a <- desugar a
-  b <- desugar b
-  Fresh dx <- decl "x"
-  let   rx =  refn "x"
-  t <- makeContext $
-    tLet (term dx) (hole a)
-      (tIf (term rx) (term rx) (hole b))
-  desugar t
-
-
-putTerm = putStrLn . show
+      return $ Lambda (PDecl d) (subst env b)
 
 main = do
   t_omega <- t_omega
@@ -167,3 +177,5 @@ main = do
   
   putStrLn ""
   putStrLn "ok"
+
+-}

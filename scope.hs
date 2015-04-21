@@ -7,7 +7,8 @@ module Scope (
   Scope, Scoped, emptyScope, joinScope, Join, Pair,
   {- Environments -}
   Env, emptyEnv, bind, find,
-  runLeftEnv, runRightEnv, liftLeftEnv, liftRightEnv,
+  runLeftEnv, runRightEnv, runMaybeLeftEnv, runMaybeRightEnv, -- TODO
+  liftLeftEnv, liftRightEnv,
   lowerLeftEnv, lowerRightEnv, clearEnv, joinEnv,
   {- Modules -}
   Import, Export, newImport, newExport, inport, export,
@@ -95,11 +96,18 @@ inport (Import name id) (Env _ _ modEnv) =
 {- Scope -}
 
 newtype Scope a = Scope [(Name, ScopeBinding)]
+                  deriving Show
 
 data ScopeBinding where
   SBAmbig  :: ScopeBinding
   SBExport :: Id -> Scope a -> ScopeBinding
   SBDecl   :: Id -> ScopeBinding
+
+-- For debugging:
+instance Show ScopeBinding where
+  show SBAmbig = "ambig"
+  show (SBExport _ s) = "(export " ++ show s ++ ")"
+  show (SBDecl id) = show $ hashUnique id
 
 instance Eq ScopeBinding where
   SBAmbig == SBAmbig = True
@@ -157,6 +165,24 @@ runRightEnv f env =
   let (x, env') = f (castEnv env) in
   (x, castEnv env')
 
+runMaybeLeftEnv :: (Env v s a -> Maybe (Env v s a'))
+              -> Env v s (Pair a b)
+              -> Maybe (Env v s (Pair a' b))
+runMaybeLeftEnv f env =
+  let maybe = f (castEnv env) in
+  case maybe of
+    Nothing -> Nothing
+    Just env -> Just (castEnv env)
+
+runMaybeRightEnv :: (Env v s b -> Maybe (Env v s b'))
+               -> Env v s (Pair a b)
+               -> Maybe (Env v s (Pair a b'))
+runMaybeRightEnv f env =
+  let maybe = f (castEnv env) in
+  case maybe of
+    Nothing -> Nothing
+    Just env -> Just (castEnv env)
+
 liftLeftEnv :: Env v s a -> Env v s (Pair a ())
 liftLeftEnv = castEnv
 
@@ -201,7 +227,7 @@ instance Show BindError where
 commonPrefix :: Eq a => [a] -> [a] -> ([a], [a], [a])
 commonPrefix (x:xs) (y:ys) =
   if x == y
-  then let (zs, xs', ys') = commonSuffix xs ys in
+  then let (zs, xs', ys') = commonPrefix xs ys in
   (x:zs, xs', ys')
   else ([], x:xs, y:ys)
 commonPrefix xs ys = ([], xs, ys)
