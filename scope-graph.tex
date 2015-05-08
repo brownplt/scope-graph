@@ -1,0 +1,471 @@
+\documentclass[preprint]{sigplanconf}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{xifthen}
+\usepackage{stmaryrd}
+\usepackage{mathabx}
+\usepackage{xargs}
+
+\newenvironment{codes}
+  {\begin{alltt}\leftskip=1.5em} % \small
+  {\end{alltt}}
+\newenvironment{ctabular}
+  {\begin{center}\begin{tabular}}
+  {\end{tabular}\end{center}}
+\newenvironment{jtable}
+  {\begin{center}\begin{tabular}{l c l @{\quad}l l}}
+  {\end{tabular}\end{center}}
+
+\theoremstyle{plain}
+\newtheorem{lemma}{Lemma}
+
+\newcommand{\ifempty}[3]{\ifthenelse{\isempty{#1}}{#2}{#3}}
+
+% Constructor Notation
+\newcommand{\constr}[2]{\ifempty{#2}{#1}{#1(#2)}}
+\newcommand{\constrtt}[2]{\constr{\texttt{#1}}{#2}}
+\newcommand{\constrit}[2]{\constr{\textit{#1}}{#2}}
+\newcommand{\constrcal}[2]{\constr{\mathcal{#1}}{#2}}
+
+\newcommand{\constrsub}[3]{\ifempty{#2}{#1}{#1_{#2}(#3)}}
+\newcommand{\constrsubtt}[3]{\constrsub{\texttt{#1}}{#2}{#3}}
+\newcommand{\constrsubit}[3]{\constrsub{\textit{#1}}{#2}{#3}}
+\newcommand{\constrsubcal}[3]{\constrsub{\mathcal{#1}}{#2}{#3}}
+
+% Terms
+\newcommand{\node}[2]{#1(#2)}
+\newcommandx*{\term}[3][1=\empty, 3=\empty]{{#2}_{#1}^{#3}}
+\newcommandx*{\decl}[3][1=\empty, 3=\empty]{\widehat{#2}_{#1}^{#3}}
+\newcommandx*{\refn}[3][1=\empty, 3=\empty]{\widecheck{#2}_{#1}^{#3}}
+\newcommandx*{\expt}[3][1=\empty, 3=\empty]{\widehat{#2}_{#1}^{#3}}
+\newcommandx*{\impt}[3][1=\empty, 3=\empty]{\widecheck{#2}_{#1}^{#3}}
+\newcommandx*{\val}[1][1=\empty]{\textit{val}^{#1}}
+\newcommandx*{\path}[2][2=\empty]{[#1]^{#2}}
+%\newcommand{\subvar}[3]{\ifthenelse{\isempty{#3}}
+%  {\texttt{#1}}
+%  {{#3}_\texttt{#1}^{#2}}}
+%\newcommand{\decl}[2][\empty]{\subvar{decl}{#1}{#2}}
+%\newcommand{\refn}[2][\empty]{\subvar{ref}{#1}{#2}}
+%\newcommand{\import}[2][\empty]{\subvar{imp}{#1}{#2}}
+%\newcommand{\export}[2][\empty]{\subvar{exp}{#1}{#2}}
+%\newcommand{\val}{\textit{val}}
+
+% Ports
+\newcommand{\port}[2]{{#1}^{#2}}
+\newcommand{\negport}[1]{-{#1}}
+\newcommand{\im}{\downarrow}
+\newcommand{\ex}{\uparrow}
+\newcommand{\interpSign}[3][\empty]{\port{\left\llbracket #2 \right\rrbracket}{#1}(#3)}
+
+% Scope
+\newcommand{\iso}{\simeq}
+\newcommand{\eqa}{=_\alpha}
+\newcommand{\bound}{\mapsto}
+
+% Math constructors
+\newcommand{\arity}[1]{\constrit{arity}{#1}}
+\newcommand{\len}[1]{\constrit{len}{#1}}
+\newcommand{\sign}[1]{\constrit{sign}{#1}}
+\newcommand{\scope}[1]{\left|#1\right|}
+
+% Standard mathematical operators
+\newcommand{\Exists}[1]{\exists{#1},\,}
+\newcommand{\NotExists}[1]{\not\exists{#1},\,}
+\newcommand{\Forall}[1]{\forall{#1},\,}
+\newcommand{\NotForall}[1]{\not\forall{#1},\,}
+\newcommand{\mand}{\wedge}
+\newcommand{\mor}{\vee}
+
+% Common usefulness
+\newcommand{\seq}[1]{\overrightarrow{#1}}
+\newcommandx*{\seqn}[3][1 = 1, 3 = n]{{#2}_{#1}\,...\,{#2}_{#3}}
+\newcommand{\code}[1]{\texttt{\frenchspacing#1}} %nonfrenchspacing weirds
+\newcommand{\lam}[1]{\lambda #1.\,}
+\newcommand{\lamsb}[2]{\lambda_{#1}\, #2.\,}
+  % semantic and amsmath don't play well together
+\newcommand{\inference}[2]{
+  \frac{\begin{tabular}{c}#1\end{tabular}}
+       {\begin{tabular}{c}#2\end{tabular}}}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%% Document %%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+\title{A Theory of Scope}
+\authorinfo{Justin Pombrio}
+  {Brown University}
+  {justinpombrio@cs.brown.edu}
+\maketitle
+
+
+
+\section{Scope as a Partial Order}
+
+\subsection{Terms}
+
+[TODO: Why do we care about terms?]
+Our terms will be parameterized over a set of \emph{node types}
+$\mathcal{N}$, each with an
+$\arity{} : \mathcal{N} \to \mathbb{N}$, and also parameterized over a
+set of \emph{valules} $\val \in \mathcal{V}$.
+
+\begin{jtable}
+$t$ &$::=$& $\decl{x}$ && (variable declaration)\\
+ &$\mid$& $\refn{x}$   && (variable use)\\
+ &$\mid$& $\node{n}{\seq{t_i}}$
+   &where $n \in \mathcal{N}$ \\
+ &&&and $\arity{n} = \len{\seq{t_i}}$ &(compound node) \\
+ &$\mid$& $\val$
+   &where $\val \in \mathcal{V}$
+   &(value)
+\end{jtable}
+We will write $s \in t$ to mean that $s$ is a subterm of $t$.
+
+Two terms $s$ and $t$ are \emph{isomorphic} $s \iso t$ when they have
+the same shape, ignoring their variables. Isomorphism is witnessed by
+a bijection between node identities $\varphi$:
+\begin{jtable}
+$s$ &$\iso\ \ $& $t$
+  &when $\Exists{\varphi} s \iso_\varphi t$ \\
+$\node{n}{\seq{s_i}}$ &$\iso_\varphi$& $\node{m}{\seq{t_i}}$
+  &when $\varphi(n) = m$ \\
+&&&and  $\len{\seq{s_i}} = \len{\seq{t_i}}$ \\
+&&&and  $\seq{s_i \iso_\varphi t_i}$ \\
+$\decl{x}$ &$\iso_\varphi$& $\decl{y}$
+  &when $\varphi(\decl{x}) = \decl{y}$ \\
+&&&(Same for $\refn{x}$, $\impt{m}$, and $\expt{m}$) \\
+$\val$ &$\iso_\varphi$& $\val$ \\
+\end{jtable}
+[Alternatively, if nodes don't have identity]:
+\begin{jtable}
+$\node{n}{\seq{s_i}}$ &$\iso$& $\node{m}{\seq{t_i}}$
+  &when $\len{\seq{s_i}} = \len{\seq{t_i}}$ \\
+&&&and  $\seq{s_i \iso t_i}$ \\
+$\decl{x}$ &$\iso$& $\decl{y}$ \\
+$\refn{x}$ &$\iso$& $\refn{y}$ \\
+$\val$ &$\iso$& $\val$ \\
+\end{jtable}
+
+
+[Key idea: scope is a partial order]
+Let $\scope{t}$ denote the scope --- a partial order over variables
+--- of $t$.
+
+Two terms $s$ and $t$ are $\alpha$-equivalent $s \eqa t$ when they
+are isomorphic and have the same scope:
+\begin{jtable}
+$s \eqa t$ &when $s \iso_\varphi t$
+            and  $\varphi{\scope{s}} = \scope{t}$
+\end{jtable}
+
+This notion of $\alpha$-equivalence can be extended to an
+\emph{ordering} over isomorphic terms:
+\begin{jtable}
+$s <_\alpha t$ &when $s \iso_\varphi t$
+                and  $\varphi{\scope{s}} \subseteq \scope{t}$
+\end{jtable}
+
+[Something something mumble hygiene]
+\begin{jtable}
+$f_\textit{hyg}(t) = \min_{t' \iso t} f(t')$
+under the order $<_\alpha$
+\end{jtable}
+[TODO: What are the conditions in which this exists?
+       Does it correspond to capture-avoidance?
+       Does it correspond to unbinding-avoidance?
+       Is it solved by resolution?
+       Does it lead to a minimal renaming?]
+
+\subsection{From Scope to Binding}
+
+[TODO: define in-scope-of]
+
+A partial order over variables directly describes where a variable
+declaration is \emph{in scope}. From this, it is possible to determine
+questions about \emph{binding}. Here are some principle notions about
+binding, and how they can be defined in terms of the scope partial
+order:
+\begin{enumerate}
+\item $\refn{x}$ is \emph{in scope of} $\decl{x}$ when $\decl{x} >
+  \refn{x}$.
+``A reference is in scope of a declaration when it is less than the
+  declaration in the scope partial order, and they share the same name.''
+\item $\refn{x}$ is \emph{unbound} when
+$\{\decl{x} \mid \decl{x} > \refn{x}\} = \emptyset$.
+``A reference is unbound when it is not in scope of any declaration.''
+\item $\refn{x}$ is \emph{ambiguously bound} when there are two
+distinct declarations
+$\decl[1]{x}, \decl[2]{x} \in \{\decl{x} \mid \decl{x} > \refn{x}\}$
+such that $\NotExists{\decl{x}}
+  \decl{x} < \decl[1]{x} \mand \decl{x} < \decl[2]{x}$.
+``A reference is ambiguously bound when the declarations it is in
+  scope of do not have a least element.''
+\item $\refn{x}$ is \emph{bound to} $\decl[1]{x}$
+(written $\refn{x} \bound \decl[1]{x}$)
+when $\min \{\decl{x} \mid \decl{x} > \refn{x}\} = \decl[1]{x}$
+``A reference will be bound to the least declaration it is in scope of.''
+\item $\decl[1]{x}$ \emph{shadows} $\decl[2]{x}$ when
+$\decl[2]{x} = \min \{\decl{x} \mid \decl{x} > \decl[1]{x}\}$.
+``One declaration shadows another when it is the least larger
+  declaration.''
+\end{enumerate}
+where $x = \min X$ means $\Forall{y \in X} x \leq y$.
+
+These notions about binding obey some intuitive and well-known
+properties.
+
+\begin{lemma}[bound variables]
+Every reference $\refn{x}$ in a term $t$ is exclusively (i) unbound,
+(ii) ambiguously bound, or (iii) bound.
+\end{lemma}
+\begin{proof}
+\newcommand{\declmin}[1]{\decl[\textit{min}]{#1}}
+Let $S$ be the set of declarations that $\refn{x}$ is in scope of:
+$S = \{\decl{x} \in t \mid \decl{x} > \refn{x}\}$.
+Consider the set of ``least'' elements of $S$:
+$L = \{\declmin{x} \in S \mid
+   \Forall{\decl{x} \in S} \decl{x} \not< \declmin{x}\}$.
+There are three possibilities: $L$ is empty, has exactly one
+element, or has two or more elements. These correspond respectively to
+$\refn{x}$ being unbound, bound, or ambiguously bound.  We address
+each in turn.
+\begin{itemize}
+\item If $L = \emptyset$, then
+  $\NotExists{\decl{y} \in S} \Forall{\decl{x} \in S}
+  \decl{x} \not< \decl{y}y$, so
+  $\Forall{\decl{y} \in S} \Exists{\decl{x} \in S}
+  \decl{x} < \decl{y}$.
+  This is impossible for a finite nonempty set $S$, since it would
+  create a cycle in the order. Thus $S = \emptyset$ and $\refn{x}$ is
+  unbound.  Conversely, if $\refn{x}$ is unbound then $S$ is empty, so
+  $L$ is empty.
+\item If $L$ has exactly one element $\declmin{x}$,
+  then by the definition of $L$,
+  $\Forall{\decl{x} \in S} \decl{x} \not< \declmin{x}$.
+  It is impossible for some $\decl[1]{x} \in S$ and $\declmin{x}$ to be
+  unrelated, otherwise
+  $\NotExists{\decl{x} \in S}
+   \decl{x} < \decl[1]{x} \mand \decl{x} < \declmin{x}$
+  and $L$ would have size at least 2, using the argument in the next
+  bullet point.
+  Thus $\Forall{\decl{x} \in S} \decl{x} \geq \declmin{x}$,
+  and $\refn{x} \bound \declmin{x}$.
+
+  Conversely, suppose $\refn{x} \bound \declmin{x}$.
+  Then $\declmin{x} = \min S$,
+  so $\Forall{\decl{x} \in S} \declmin{x} \leq \decl{x}$,
+  so $\declmin{x} \in L$.
+  Furthermore, $L$ cannot have any elements other than $\declmin{x}$,
+  since it is least. Thus $L = \{ \declmin{x} \}$ has size 1.
+\item If $L$ has at least two elements $\decl[1]{x}$ and $\decl[2]{x}$,
+  then $\Forall{\decl{x} \in S}
+  \decl{x} \not< \decl[1]{x} \mand \decl{x} \not< \decl[2]{x}$,
+  so $\NotExists{\decl{x} \in S}
+  \decl{x} < \decl[1]{x} \mand \decl{x} < \decl[2]{x}$,
+  which is the definition of the ambiguity of $\refn{x}$.
+
+  Conversely, if $\refn{x}$ is ambiguously bound with declarations
+  $\decl[1]{x}$ and $\decl[2]{x}$, then
+  $\NotExists{\decl{x} \in S}
+  \decl{x} < \decl[1]{x} \mand \decl{x} < \decl[2]{x}$.
+  Consider the restrictions of $L$ to the sets
+  $S_1 = \{\decl{x} \in S \mid \decl{x} < \decl[1]{x}\}$ and
+  $S_2 = \{\decl{x} \in S \mid \decl{x} < \decl[2]{x}\}$.
+  These sets are nonempty, disjoint from one another, and they are
+  both contained in $L$. Thus $L$ must have size at least 2.
+\end{itemize}
+(Note: $\bigwedge S \text{ over } S
+        = \text{min} S
+        = \bigvee \{\refn{x}\} \text{ over } S$)
+\end{proof}
+
+\begin{lemma}[scope]
+If $\refn{x} \bound \decl{x}$, then $\refn{x}$ is in scope of
+$\decl{x}$.
+\end{lemma}
+\begin{proof}
+Follows immediately from the definitions of ``in scope'' and
+``bound to''.
+\end{proof}
+
+\begin{lemma}[shadowing]
+If one declaration shadows another, then a reference in scope of the
+shadowing variable cannot be bound to the shadowed variable.
+\end{lemma}
+\begin{proof}
+Formally, we want to say that
+if $\refn{x} < \decl[1]{x}$ and $\decl[1]{x}$ shadows $\decl[2]{x}$,
+then $\refn{x} \bound \decl[2]{x}$ is impossible.
+Suppose for sake of contradition that it is possible.
+Then $\refn{x} < \decl[1]{x} < \decl[2]{x}$
+and $\decl[2]{x} = \min \{\decl{x} \mid \decl{x} > \refn{x}\}
+\le \decl[1]{x}$, which is a contradiction.
+
+\end{proof}
+
+
+\section{A Binding Declaration Language}
+
+In this section we give a language for declaratively specifying the
+scoping rules of a language, in a way that naturally defines a
+partial order over terms' variables. Essentially, terms in [TODO]...
+
+Ports will have two \emph{directions}, in and out:
+\begin{jtable}
+$d$ &$::=$& $\im$  & (in) \\
+   &$\mid$& $\ex$ & (out)
+\end{jtable}
+A direction can be flipped with $\negport{d}$:
+\begin{jtable}
+$\negport{\im}$ &$=$& $\ex$ \\
+$\negport{\ex}$ &$=$& $\im$
+\end{jtable}
+A \emph{port}, then, pairs a term $t$ with a direction:
+\begin{jtable}
+$p$ &$::=$& $\term{t}[d]$
+\end{jtable}
+
+A \emph{scope signature} $\sigma = \sign{n}$ for a constructor $n \in
+\mathcal{N}$ of arity $k$ is a partial order over
+$\{[0],\,...,\,[k]\}$, where $[0]$ represents the parent node, and
+$[i]$ represents the $i$th child node.
+\begin{jtable}
+$\sigma^k$ &$::=$& partial order $(<)$ over
+  $\{[0],\,...,\,[k]\}$
+\end{jtable}
+We will write $x <: y$ to mean that $x$ directly precedes $y$ in
+partial order $(<)$.
+Formally, $x <: y$ when $x < y$ but $\NotExists{z} x < z < y$.
+
+The interpretation of this partial order depends is asymmetric with
+respect to the parent node and its children. Between two children,
+$[i] < [j]$ means that child $t_j$ imports the bindings exported by
+$t_i$. On the other hand, $[i] < [0]$ means that child $t_i$ imports
+the bindings \emph{imported} by the parent $t$ and $[0] < [i]$ means
+that the parent \emph{exports} the bindings exported by $t_i$. This is
+reflected by the interpretation $\interpSign{i}{d}{\cdot}$ of scope
+signatures:
+\begin{jtable}
+$\interpSign[d]{0}{s, \seq{t_i}}$
+  &$=$& $\port{n}{\negport{d}}$ \\
+$\interpSign[d]{i}{s, \seq{t_i}}$
+  &$=$& $\port{t_i}{d}$
+  &when $i > 0$
+\end{jtable}
+
+These scope signatures declare the scoping rule for individual nodes.
+The \emph{scoping} of a full term $t$ can then be computed as the least
+relation $(<)$ over the ports of $t$ such that:
+\begin{jtable}
+$\decl{x}[\im]$ &$<$& $\decl{x}[\ex]$
+  &for each $\decl{x} \in t$ \\
+$\val[\im]$ &$<$& $\val[\ex]$
+  &for each $\val \in t$ \\
+$\interpSign[\im]{j}{s, \seq{t_i}}$
+  &$<$& $\interpSign[\ex]{k}{s, \seq{t_i}}$
+  &for each $s = \node{n}{\seq{t_i}} \in t$ \\
+&&&and $[j] <: [k] \in \sign{n}$ \\
+$\expt{m}[\im]$ &$<$& $\expt{m}[\ex]$
+  &when $\expt{m}[\ex] < \impt{m}[\im]$ \\
+\end{jtable}
+
+
+\subsection{Scope Inference}
+
+Here are scope inference rules.
+They act over two kinds of judgements:
+\begin{enumerate}
+\item $(n : \path{\seq{q}}[d_q] > \path{\seq{r}}[d_r]) \in \Sigma$
+  describes a scope rule among every node of type $n$ and its
+  children.
+\item $\Sigma \vdash \path{\seq{p}}[d_p] >_t \path{\seq{q}}[d_q]$ says
+  that the scope rules in $\Sigma$ imply that in the scope order of
+  term $t$, the port at $\path{\seq{p}}[d_p]$ must be larger than the
+  port at $\path{\seq{q}}[d_q]$
+\end{enumerate}
+The inference rules find a fixpoint among these two kinds of judgements.
+
+\[\inference
+    { $\len{\seq{p}\,p} > \len{\seq{q}}$ \\
+      $\Sigma \vdash \path{\seq{p}\,p}[\ex] >_t \path{\seq{q}}[\im]$ }
+    { $\Sigma \vdash \path{\seq{p}\,p}[\ex] >_t \path{\seq{p}}[\ex]$ \\
+      $\Sigma \vdash \path{\seq{p}}[\ex] >_t \path{\seq{q}}[\im]$ }
+\]
+\[\inference
+    { $\len{\seq{p}} < \len{\seq{q}\,q}$ \\
+      $\Sigma \vdash \path{\seq{p}}[\ex] >_t \path{\seq{q}\,q}[\im]$ }
+    { $\Sigma \vdash \path{\seq{p}}[\ex] >_t \path{\seq{q}}[\im]$ \\
+      $\Sigma \vdash \path{\seq{q}}[\im] >_t \path{\seq{q}\,q}[\im]$ }
+\]
+\[\inference
+    { $\len{\seq{p}} = \len{\seq{q}\,q}$ \\
+      $\seq{p} \not= \seq{q}$ \\
+      $\Sigma \vdash \path{\seq{p}\,p}[\ex] >_t \path{\seq{q}\,q}[\im]$ }
+    { $\Sigma \vdash \path{\seq{p}\,}[\ex] >_t \path{\seq{p}}[\ex]$ \\
+      $\Sigma \vdash \path{\seq{p}}[\ex] >_t \path{\seq{q}}[\im]$ \\
+      $\Sigma \vdash \path{\seq{q}}[\im] >_t \path{\seq{q}\,q}[\im]$ }
+\]
+
+In these rules,
+$\path{\seq{p}} < \path{\seq{q}}$ means that
+$\port{t @ \path{\seq{p}}}{\im} = < \port{t @ \path{\seq{q}}}{\im}$
+
+\[\inference
+    { $n > m$ \\
+      $\path{\seqn{x}[n]} < \path{\seqn{y}[m]}$}
+    { $\path{\seqn{x}[n]} < \path{\seqn{x}[n-1]}$ \\
+      $\mand \path{\seqn{x}[n-1]} < \path{\seqn{y}[m]}$}
+\]
+\[\inference
+    { $m > n$ \\
+      $\path{\seqn{x}[n]} < \path{\seqn{y}[m]}$}
+    { $\path{\seqn{x}[n]} < \path{\seqn{y}[m-1]}$ \\
+      $\mand \path{\seqn{y}[m-1]} < \path{\seqn{y}[m]}$}
+\]
+\[\inference
+    { $\path{\seqn{x}[n]} \not= \path{\seqn{y}[n]}$ \\
+      $\path{\seqn{x}[n]\,x_{n+1}} < \path{\seqn{y}[n]\,y_{n+1}}$}
+    { $      \path{\seqn{x}[n]\,x_{n+1}} < \path{\seqn{x}[n]}$ \\
+      $\mand \path{\seqn{x}[n]} < \path{\seqn{y}[n]}$ \\
+      $\mand \path{\seqn{y}[n]} < \path{\seqn{y}[n]\,y_{n+1}}$}
+\]
+The following three rules are iff:
+\[\inference
+    { $\path{\seqn{x}[n]} < \path{\seqn{x}[n]\,y}$ }
+    { $[0] < [y] \text{ in } \scope{t @ \path{\seqn{x}[n]}}$ }
+\]
+\[\inference
+    { $\path{\seqn{x}[n]\,y} < \path{\seqn{x}[n]}$ }
+    { $[y] < [k+1] \text{ in } \scope{t @ \path{\seqn{x}[n]}}$ }
+\]
+\[\inference
+    { $\path{\seqn{x}[n]\,y} < \path{\seqn{x}[n]\,z}$ }
+    { $[y] < [z] \text{ in } \scope{t @ \path{\seqn{x}[n]}}$ }
+\]
+
+
+\subsection{Modules}
+
+This binding language can be extended to support ``module'' imports
+and exports as well. Specifically, it can be extended with the ability
+to group a set of bindings together under a module export $\expt{m}$
+that can later be brought into scope all at once with a corresponding
+import $\impt{m}$.
+
+
+Specifically, we can add two new types of terms:
+\begin{jtable}
+$t$ &$::=$& ... \\
+ &$\mid$& $\expt{m}$ && (module export)\\
+ &$\mid$& $\impt{m}$ && (module import)\\
+\end{jtable}
+with the semantics that the variables over which $\impt{x}$ are in
+scope are themselves in scope
+
+[QUESTION: How can scope inference be done when modules are present?]
+
+\end{document}
