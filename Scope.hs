@@ -16,8 +16,10 @@ module Scope (
   {- Computations -}
   getState, setState,
   {- Unhygienic operations! -}
-  unhygienicDeclName, unhygienicRefnName)
-       where
+  unhygienicDeclName, unhygienicRefnName,
+  {- Easy Constructors -}
+  decl, refn, NewDecl (NewDecl)
+  ) where
 
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -43,12 +45,20 @@ data FreshImport =
                          Either BindError (Import a b, Scope b))
 
 
+emptyScope :: Scope ()
+emptyScope = Scope []
+
+newtype Scope a = Scope [(Name, ScopeBinding)]
+                  deriving Show
+
+-- String -> Scope a -> exists b. (Decl a b, Scope b)
 newDecl :: String -> IO FreshDecl
 newDecl name = do
   id <- newUnique
   return $ FreshDecl $ \(Scope s) ->
     (Decl name id, Scope ((name, SBDecl id): s))
 
+-- String -> Scope a -> UnboundErr \/ AmbigErr \/ Refn a
 newRefn :: String -> Scope a -> Either BindError (Refn a)
 newRefn name (Scope scope) =
   case lookup name scope of
@@ -56,6 +66,28 @@ newRefn name (Scope scope) =
     Just SBAmbig        -> Left  (AmbiguousError name)
     Just (SBExport _ _) -> Left  (BindingTypeError name)
     Just (SBDecl id)    -> Right (Refn name id)
+
+bind :: Decl a b -> v -> Env v s a -> Env v s b
+bind (Decl name id) v (Env st varEnv modEnv) =
+  Env st (Map.insert (name, id) v varEnv) modEnv
+
+find :: Refn a -> Env v s a -> v
+find (Refn name id) (Env _ varEnv _) =
+  case Map.lookup (name, id) varEnv of
+    Just v -> v
+    Nothing -> error $ "Internal scope error! find " ++ show name
+
+-- Scope a -> Scope b -> Scope (Join a b)
+joinScope :: Scope a -> Scope b -> Scope (Join a b)
+joinScope (Scope scope1) (Scope scope2) =
+  let (suffix, diff1, diff2) = commonSuffix scope1 scope2 in
+  let add (name, bind) =
+        case lookup name diff2 of
+          Nothing -> (name, bind)
+          Just _  -> (name, SBAmbig) in
+  Scope $ (map add diff1) ++ diff2 ++ suffix
+
+data Join a b
 
 newExport :: String -> IO FreshExport
 newExport name = do
@@ -72,16 +104,6 @@ newImport name = FreshImport $ \(Scope scope) ->
     Just (SBExport id (Scope scope)) ->
       Right (Import name id, Scope scope)
 
-bind :: Decl a b -> v -> Env v s a -> Env v s b
-bind (Decl name id) v (Env st varEnv modEnv) =
-  Env st (Map.insert (name, id) v varEnv) modEnv
-
-find :: Refn a -> Env v s a -> v
-find (Refn name id) (Env _ varEnv _) =
-  case Map.lookup (name, id) varEnv of
-    Just v -> v
-    Nothing -> error $ "Internal scope error! find " ++ show name
-
 export :: Export a b -> Env v s a -> Env v s b
 export (Export name id) env =
   Env (getState env) Map.empty (Map.singleton (name, id) (castEnv env))
@@ -94,9 +116,6 @@ inport (Import name id) (Env _ _ modEnv) =
 
 
 {- Scope -}
-
-newtype Scope a = Scope [(Name, ScopeBinding)]
-                  deriving Show
 
 data ScopeBinding where
   SBAmbig  :: ScopeBinding
@@ -117,20 +136,6 @@ instance Eq ScopeBinding where
   _ == _ = False
 
 type Scoped a b t = Scope a -> (t, Scope b)
-
-data Join a b
-
-emptyScope :: Scope ()
-emptyScope = Scope []
-
-joinScope :: Scope a -> Scope b -> Scope (Join a b)
-joinScope (Scope scope1) (Scope scope2) =
-  let (suffix, diff1, diff2) = commonSuffix scope1 scope2 in
-  let add (name, bind) =
-        case lookup name diff2 of
-          Nothing -> (name, bind)
-          Just _  -> (name, SBAmbig) in
-  Scope $ (map add diff1) ++ diff2 ++ suffix
 
 
 {- Environments -}
@@ -236,3 +241,21 @@ commonSuffix :: Eq a => [a] -> [a] -> ([a], [a], [a])
 commonSuffix xs ys =
   let (a, b, c) = commonPrefix (reverse xs) (reverse ys) in
   (reverse a, reverse b, reverse c)
+
+
+{- Easy Constructors -}
+
+data NewDecl a =
+  forall b. NewDecl (Decl a b) (Scope b)
+
+decl :: String -> Scope a -> IO (NewDecl a)
+decl name scope = do
+  FreshDecl d <- newDecl name
+  let (d', scope') = d scope
+  return (NewDecl d' scope')
+
+refn :: String -> Scope a -> Refn a
+refn name s =
+  case newRefn name s of
+    Right r  -> r
+    Left err -> error (show err)

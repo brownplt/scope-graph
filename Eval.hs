@@ -28,11 +28,16 @@ evalBigstep t = fst $ eval t (emptyEnv ()) where
   eval :: Expr a -> InterpEval a a
   eval (Refn r) = iRefn id r
   eval (Num n)  = iNum VNum n
+
+
   eval (Apply f a) = iApply apply (eval f) (eval a) where
+
     apply (VClosure x b env') arg =
       case match x arg env' of
         Nothing  -> matchError "Apply" arg x
         Just env -> fst $ eval b env
+
+
   eval (Stmt a)  = iStmt  id (evalStmt a)
   eval (Lambda x b) = \env -> (VClosure x b env, env)
   eval (IfCase a x b c) = \env ->
