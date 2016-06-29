@@ -1,0 +1,8 @@
+[package]
+name = "scope-resugaring"
+version = "0.1.0"
+authors = ["justinpombrio <zallambo@gmail.com>"]
+
+[dependencies]
+regex = "*"
+lazy_static = "*"
