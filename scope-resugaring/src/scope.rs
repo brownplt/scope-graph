@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 use util::debug_sep;
-use rule::{Fact, ScopeRules};
+use rule::{Fact, ScopeRules, Language};
 use rule::Elem::{Imp, Exp, Child};
 use term::{RewriteRule, Term};
 use term::Term::*;
@@ -104,15 +104,19 @@ fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj
 }
 
 
-fn solve<Node>(core_scope: &ScopeRules<Node>, cs: Vec<Constraint<Node>>) -> ScopeRules<Node>
+fn solve<Node>(cs: Vec<Constraint<Node>>,
+               core_scope: &ScopeRules<Node>,
+               surf_scope: &mut ScopeRules<Node>)
     where Node: PartialEq + Copy + Eq + Hash + fmt::Display
 {
 
+    #[derive(Debug)]
     struct FactPosn {
         index: usize, // Index of constraint
-         side: Side    // LHS vs. RHS of constraint
+        side: Side    // LHS vs. RHS of constraint
     }
 
+    #[derive(Debug)]
     enum Side { Left, Right }
 
 
@@ -158,17 +162,18 @@ fn solve<Node>(core_scope: &ScopeRules<Node>, cs: Vec<Constraint<Node>>) -> Scop
     }
 
     // Initialize Sigma_surf = Sigma_core (frontier is implicitly part of Sigma_surf)
-    let mut surface_scope = ScopeRules::new();
     let mut frontier: Vec<Fact<Node>> = vec!();
-    for rule in core_scope.rules.iter() {
+    for rule in core_scope.rules.values() {
         for fact in rule.iter() {
+            println!("Solve/init: {}", fact);
             frontier.push(fact);
         }
     }
     
     while let Some(fact) = frontier.pop() {
         // Maintain transitive closure
-        for trans_closure_fact in surface_scope.insert(fact) {
+        for trans_closure_fact in surf_scope.insert(fact) {
+            println!("Solve/trans: {} from {}", trans_closure_fact, fact);
             frontier.push(trans_closure_fact);
         }
         // If a fact in a constraint is in Sigma_surf
@@ -176,6 +181,7 @@ fn solve<Node>(core_scope: &ScopeRules<Node>, cs: Vec<Constraint<Node>>) -> Scop
             None => (),
             Some(posns) => {
                 for posn in posns.into_iter() {
+                    println!("Solve/posn {:?}", posn);
                     match posn.side {
                         Side::Left => {
                             // Delete it from the constraint
@@ -184,6 +190,7 @@ fn solve<Node>(core_scope: &ScopeRules<Node>, cs: Vec<Constraint<Node>>) -> Scop
                             if equations[posn.index].left.is_empty() {
                                 // Add the other side to Sigma_surf
                                 for fact in equations[posn.index].right.drain() {
+                                    println!("Solve/infer: {}", fact);
                                     frontier.push(fact);
                                 }
                             }
@@ -192,9 +199,10 @@ fn solve<Node>(core_scope: &ScopeRules<Node>, cs: Vec<Constraint<Node>>) -> Scop
                             // Delete it from the constraint
                             equations[posn.index].right.remove(&fact);
                             // If one side of a constraint is empty
-                            if equations[posn.index].left.is_empty() {
+                            if equations[posn.index].right.is_empty() {
                                 // Add the other side to Sigma_surf
                                 for fact in equations[posn.index].left.drain() {
+                                    println!("Solve/infer: {}", fact);
                                     frontier.push(fact);
                                 }
                             }
@@ -207,7 +215,7 @@ fn solve<Node>(core_scope: &ScopeRules<Node>, cs: Vec<Constraint<Node>>) -> Scop
 
     let core_scope_complement = core_scope.complement();
     // If any fact in Sigma_surf is in the complement of Sigma_core
-    for rule in surface_scope.rules.iter() {
+    for rule in surf_scope.rules.values() {
         for fact in rule.iter() {
             if core_scope_complement.contains(&fact) {
                 // ERROR
@@ -215,9 +223,20 @@ fn solve<Node>(core_scope: &ScopeRules<Node>, cs: Vec<Constraint<Node>>) -> Scop
             }
         }
     }
-
-    surface_scope
 }
+
+pub fn resugar_scope<Node, Val>(language: &mut Language<Node, Val>)
+    where Node: Copy + fmt::Display + Eq + Hash, Val: fmt::Display
+{
+    let mut constraints = vec!();
+    for rule in language.rewrite_rules.iter() {
+        for constraint in gen_constrs(rule).into_iter() {
+            constraints.push(constraint);
+        }
+    }
+    solve(constraints, &language.core_scope, &mut language.surf_scope)
+}
+
 
 
 #[cfg(test)]
@@ -229,14 +248,15 @@ mod tests {
     use super::*;
     use term::{Term, RewriteRule};
     use term::Term::*;
-
+    use rule::{Fact, Language, Elem};
+    use rule::Elem::{Imp, Exp, Child};
     use source::SourceFile;
     use lexer::Lexer;
-    use parser::{parse_rewrite_rule};
+    use parser::{parse_rewrite_rule, parse_language};
 
     use self::Node::*;
 
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash)]
     enum Node { Let, Apply, Lambda }
 
     impl fmt::Display for Node {
@@ -267,22 +287,28 @@ mod tests {
 
     #[test]
     fn constraint_solving() {
-        let rule_1 = {
-            let lhs = Stx(Let, vec!(hole("a"), hole("b"), hole("c")));
-            let rhs = Stx(Apply, vec!(Stx(Lambda, vec!(hole("a"), hole("c"))), hole("b")));
-            RewriteRule::new(lhs, rhs)
-        };
+        let mut lang_1: Language<Node, usize> =
+            parse_language(&SourceFile::open("src/scope_test_1.scope").unwrap());
 
-        let core_lang = {
-            
-        };
+        resugar_scope(&mut lang_1);
+
+        let ref let_rule = lang_1.surf_scope.rules[&Let];
+        let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
+        assert_eq!(let_facts.len(), 5);
+        assert!(let_rule.lt(Exp, Imp));
+        assert!(let_rule.lt(Child(0), Imp));
+        assert!(let_rule.lt(Child(1), Imp));
+        assert!(let_rule.lt(Child(2), Imp));
+        assert!(let_rule.lt(Child(2), Child(0)));
+        
+        println!("\n{}", lang_1.surf_scope);
     }
 
     #[test]
     fn constraint_generation() {
         let rule_1: RewriteRule<Node, usize> =
             parse_rewrite_rule(&SourceFile::from_str(
-                "rule (Let a b c) => (Apply Lambda a c) b)" ));
+                "rule (Let a b c) => (Apply (Lambda a c) b)" ));
 
         /*
         // To show elapsed time:

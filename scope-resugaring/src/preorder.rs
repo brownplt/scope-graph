@@ -3,7 +3,7 @@
 // Invariant: Always is transitively and reflexively closed
 // Invariant: `order` always has size `size`
 pub struct Preorder {
-    size: usize,
+    pub size: usize,
     order: Vec<Vec<bool>>
 }
 
@@ -40,17 +40,21 @@ impl Preorder {
         }
     }
 
-    pub fn lt<Elem>(&self, a: Elem, b: Elem) -> bool where usize: From<Elem> {
-        self.order[usize::from(a)][usize::from(b)]
+    pub fn lt(&self, edge: (usize, usize)) -> bool {
+        self.order[edge.0][edge.1]
     }
 
     // O(n*n*n) amortized
-    pub fn insert<Elem>(&mut self, edge: (Elem, Elem)) where usize: From<Elem> {
-        let edge = (usize::from(edge.0), usize::from(edge.1));
-        let mut frontier = vec!(edge);
+    pub fn insert(&mut self, init_edge: (usize, usize)) -> Vec<(usize, usize)>
+    {
+        let mut new_edges = vec!();
+        let mut frontier = vec!(init_edge);
         while let Some(edge) = frontier.pop() {
             if !self.order[edge.0][edge.1] {
                 self.order[edge.0][edge.1] = true;
+                if edge != init_edge {
+                    new_edges.push(edge);
+                }
                 for i in 0..self.size {
                     if self.order[edge.1][i] {
                         frontier.push((edge.0, i));
@@ -63,6 +67,7 @@ impl Preorder {
                 }
             }
         }
+        new_edges
     }
 
     pub fn as_pairs(&self) -> Vec<(usize, usize)> {
@@ -70,6 +75,18 @@ impl Preorder {
         for x in 0..self.size {
             for y in 0..self.size {
                 if self.order[x][y] {
+                    pairs.push((x, y));
+                }
+            }
+        }
+        pairs
+    }
+
+    pub fn complement_as_pairs(&self) -> Vec<(usize, usize)> {
+        let mut pairs = vec!();
+        for x in 0..self.size {
+            for y in 0..self.size {
+                if !self.order[x][y] {
                     pairs.push((x, y));
                 }
             }

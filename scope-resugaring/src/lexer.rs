@@ -8,6 +8,12 @@ use self::Token::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Token {
+    // Language
+    Language,
+    // Punctuation
+    Semicolon,
+    LBrace,
+    RBrace,
     // Scoping Rules
     Colon,
     Bind,
@@ -32,7 +38,11 @@ fn make_matcher(token: Token, regex: &str) -> (Token, Regex) {
 }
 
 lazy_static! {
-    static ref MATCHERS: [(Token, Regex); 13] = [
+    static ref MATCHERS: [(Token, Regex); 17] = [
+        make_matcher(Language, "language"),
+        make_matcher(Semicolon, ";"),
+        make_matcher(LBrace  , "\\{"),
+        make_matcher(RBrace  , "\\}"),
         make_matcher(Colon   , ":"),
         make_matcher(LParen  , "\\("),
         make_matcher(RParen  , "\\)"),
@@ -53,6 +63,10 @@ lazy_static! {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            Language => write!(f, "language"),
+            Semicolon => write!(f, ";"),
+            LBrace   => write!(f, "{{"),
+            RBrace   => write!(f, "}}"),
             Colon    => write!(f, ":"),
             LParen   => write!(f, "("),
             RParen   => write!(f, ")"),

@@ -1,12 +1,13 @@
 use std::iter::Peekable;
 use std::str::FromStr;
 use std::fmt;
+use std::hash::Hash;
 
 use source::SourceFile;
 use lexer::{Lexeme, Token, Lexer};
 use term::{Term, Var, RewriteRule};
 use rule::Elem::{Child, Imp, Exp};
-use rule::{Fact, ScopeRule};
+use rule::{Fact, ScopeRule, Elem, Language};
 
 
 
@@ -23,6 +24,12 @@ pub fn parse_term<'s, Node, Val>(src: &'s SourceFile) -> Term<Node, Val>
     where Node: FromStr, Node::Err: fmt::Debug
 {
     Parser::from_source(src).parse_term().unwrap()
+}
+
+pub fn parse_language<'s, Node, Val>(src: &'s SourceFile) -> Language<Node, Val>
+    where Node: FromStr + Copy + Eq + Hash + fmt::Display, Node::Err: fmt::Debug
+{
+    Parser::from_source(src).parse_language().unwrap()
 }
 
 type Stream<'s> = Peekable<Lexer<'s>>;
@@ -67,7 +74,7 @@ impl<'s> Parser<'s> {
            Some(lex) => {
                let found = lex.span.as_str();
                let info = lex.span.preview(80);
-               panic!("Expected EOF, but found {}\n{}", found, info);
+               panic!("Found unexpected token {}\n{}", found, info);
            }
        } 
     }
@@ -95,6 +102,12 @@ impl<'s> Parser<'s> {
     {
         let node = try!(self.parse_token(Token::Name));
         Ok(Node::from_str(&format!("{}", node)).unwrap())
+    }
+
+    fn parse_name(&mut self) -> Result<String, ()>
+    {
+        let name = try!(self.parse_token(Token::Name));
+        Ok(String::from(name.span.as_str()))
     }
 
     fn parse_stx<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
@@ -140,12 +153,16 @@ impl<'s> Parser<'s> {
         where Node: FromStr, Node::Err: fmt::Debug
     {
         try!(self.parse_token(Token::Rule));
+        
         let lhs = self.parse_term();
-        let lhs = self.check("Term", lhs);
+        let lhs = self.check("Term (for rewrite rule LHS)", lhs);
+        
         let arrow = self.parse_token(Token::Arrow);
-        self.check("Arrow", arrow);
+        self.check("Arrow (for rewrite rule)", arrow);
+        
         let rhs = self.parse_term();
-        let rhs = self.check("Term", rhs);
+        let rhs = self.check("Term (for rewrite rule RHS)", rhs);
+        
         Ok(RewriteRule::new(lhs, rhs))
     }
 
@@ -155,49 +172,102 @@ impl<'s> Parser<'s> {
         Ok(usize::from_str(n.span.as_str()).unwrap())
     }
 
-    fn parse_fact_import<Node>(&mut self, node: Node) -> Result<Fact<Node>, ()>
-        where Node: Copy + FromStr, Node::Err: fmt::Debug
+    fn parse_child(&mut self) -> usize
+    {
+        let i = self.parse_num();
+        let i = self.check("Index of subterm", i);
+        if i == 0 {
+            panic!("Subterm index cannot be 0 (it is 1-indexed)")
+        }
+        i - 1
+    }
+
+    fn parse_fact_import(&mut self) -> Result<(Elem, Elem), ()>
     {
         try!(self.parse_token(Token::Import));
-        let i = self.parse_num();
-        let i = self.check("Number", i);
-        Ok(Fact::new(node, Child(i), Imp))
+        let i = self.parse_child();
+        Ok((Child(i), Imp))
     }
 
-    fn parse_fact_export<Node>(&mut self, node: Node) -> Result<Fact<Node>, ()>
-        where Node: Copy + FromStr, Node::Err: fmt::Debug
+    fn parse_fact_export(&mut self) -> Result<(Elem, Elem), ()>
     {
         try!(self.parse_token(Token::Export));
-        let i = self.parse_num();
-        let i = self.check("Number", i);
-        Ok(Fact::new(node, Exp, Child(i)))
+        let i = self.parse_child();
+        Ok((Exp, Child(i)))
     }
 
-    fn parse_fact_sibling<Node>(&mut self, node: Node) -> Result<Fact<Node>, ()>
-        where Node: Copy + FromStr, Node::Err: fmt::Debug
+    fn parse_fact_sibling(&mut self) -> Result<(Elem, Elem), ()>
     {
         try!(self.parse_token(Token::Bind));
-        let i = self.parse_num();
-        let i = self.check("Number", i);
+        
+        let i = self.parse_child();
+        
         let _in = self.parse_token(Token::In);
         self.check("`in`", _in);
-        let j = self.parse_num();
-        let j = self.check("Number", j);
-        Ok(Fact::new(node, Child(j), Child(i)))
+        
+        let j = self.parse_child();
+        
+        Ok((Child(j), Child(i)))
     }
 
-    fn parse_fact<Node>(&mut self, node: Node) -> Result<Fact<Node>, ()>
-        where Node: Copy + FromStr, Node::Err: fmt::Debug
+    fn parse_fact(&mut self) -> Result<(Elem, Elem), ()>
     {
-        Err(())
-            .or_else(|_| self.parse_fact_import(node))
-            .or_else(|_| self.parse_fact_export(node))
-            .or_else(|_| self.parse_fact_sibling(node))
+        let fact = try!(Err(())
+            .or_else(|_| self.parse_fact_import())
+            .or_else(|_| self.parse_fact_export())
+            .or_else(|_| self.parse_fact_sibling()));
+        
+        let _semi = self.parse_token(Token::Semicolon);
+        self.check("Semicolon", _semi);
+        
+        Ok(fact)
     }
 
     fn parse_scope_rule<Node>(&mut self) -> Result<ScopeRule<Node>, ()>
-        where Node: Copy + FromStr, Node::Err: fmt::Debug
+        where Node: Copy + FromStr + fmt::Display, Node::Err: fmt::Debug
     {
-         panic!("NYI")
-    }    
+        let node = try!(self.parse_node());
+        
+        let arity = self.parse_num();
+        let arity = self.check("Arity", arity);
+        
+        let _lb = self.parse_token(Token::LBrace);
+        self.check("Left brace", _lb);
+        
+        let mut facts = vec!();
+        while let Ok(fact) = self.parse_fact() {
+            facts.push(fact);
+        }
+        
+        let _rb = self.parse_token(Token::RBrace);
+        self.check("Left brace", _rb);
+        
+        Ok(ScopeRule::new(node, arity, facts))
+    }
+
+    fn parse_language<Node, Val>(&mut self) -> Result<Language<Node, Val>, ()>
+        where Node: Copy + FromStr + Eq + Hash + fmt::Display, Node::Err: fmt::Debug
+    {
+        try!(self.parse_token(Token::Language));
+        
+        let name = self.parse_name();
+        let name = self.check("Language name", name);
+        
+        let _lb = self.parse_token(Token::LBrace);
+        self.check("Left brace", _lb);
+        
+        let mut scope = vec!();
+        while let Ok(scope_rule) = self.parse_scope_rule() {
+            scope.push(scope_rule);
+        }
+        let mut rewrite = vec!();
+        while let Ok(rewrite_rule) = self.parse_rewrite_rule() {
+            rewrite.push(rewrite_rule);
+        }
+        
+        let _rb = self.parse_token(Token::RBrace);
+        self.check("Left brace", _rb);
+        
+        Ok(Language::new(name, scope, rewrite))
+    }
 }
