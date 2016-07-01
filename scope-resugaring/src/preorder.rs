@@ -27,9 +27,9 @@ impl Preorder {
     // Used by rules: closed under transitivity, but not reflexivity.
     pub fn new_non_reflexive(size: usize) -> Preorder {
         let mut order = Vec::with_capacity(size);
-        for i in 0..size {
+        for _ in 0..size {
             let mut row = Vec::with_capacity(size);
-            for j in 0..size {
+            for _ in 0..size {
                 row.push(false);
             }
             order.push(row);

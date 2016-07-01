@@ -8,14 +8,18 @@ use self::Token::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Token {
-    LParen,
-    RParen,
-    Rule,
-    Arrow,
+    // Scoping Rules
+    Colon,
     Bind,
     In,
     Import,
     Export,
+    // Desugaring Rules
+    Rule,
+    Arrow,
+    // Terms
+    LParen,
+    RParen,
     DeclMark,
     RefnMark,
     Num,
@@ -24,11 +28,12 @@ pub enum Token {
 
 
 fn make_matcher(token: Token, regex: &str) -> (Token, Regex) {
-    (token, Regex::new(regex).unwrap())
+    (token, Regex::new(&(String::from("^") + regex)).unwrap())
 }
 
 lazy_static! {
-    static ref MATCHERS: [(Token, Regex); 12] = [
+    static ref MATCHERS: [(Token, Regex); 13] = [
+        make_matcher(Colon   , ":"),
         make_matcher(LParen  , "\\("),
         make_matcher(RParen  , "\\)"),
         make_matcher(Rule    , "rule"),
@@ -42,11 +47,13 @@ lazy_static! {
         make_matcher(Num     , "[0-9]+"),
         make_matcher(Name    , "[a-zA-Z][a-zA-Z_0-9-]*")
         ];
+    static ref WS_MATCHER: Regex = Regex::new("^[ \t\r\n]*").unwrap();
 }
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            Colon    => write!(f, ":"),
             LParen   => write!(f, "("),
             RParen   => write!(f, ")"),
             Rule     => write!(f, "Rule"),
@@ -81,11 +88,13 @@ pub struct Lexer<'s> {
 
 impl<'s> Lexer<'s> {
     pub fn new(source: &'s SourceFile) -> Lexer<'s> {
-        Lexer{
+        let mut lexer = Lexer{
             source: source,
             ptr: &source.text,
             pos: Pos::new(0)
-        }
+        };
+        lexer.trim_ws();
+        lexer
     }
 
     fn at_eof(&self) -> bool {
@@ -103,6 +112,13 @@ impl<'s> Lexer<'s> {
             }
             self.match_span(j)
         })
+    }
+
+    fn trim_ws(&mut self) {
+        match self.match_regex(&WS_MATCHER) {
+            None => (),
+            Some(span) => self.consume(span)
+        }
     }
 
     fn consume(&mut self, span: Span) {
@@ -123,6 +139,7 @@ impl<'s> Iterator for Lexer<'s> {
                 None => (),
                 Some(span) => {
                     self.consume(span);
+                    self.trim_ws();
                     return Some(Lexeme{ token: *token, span: span });
                 }
             }

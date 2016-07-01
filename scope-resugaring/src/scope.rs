@@ -59,7 +59,7 @@ fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj
         where Node: Copy + fmt::Display, Val: fmt::Display
     {
         match term {
-            &Stx(ref node, ref subterms) => {
+            &Stx(ref node, _) => {
                 match (a.first(), b.first()) {
                     (None, None) => {
                         // S-Self
@@ -104,11 +104,6 @@ fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj
 }
 
 
-struct Equation<Node> {
-    left: HashSet<Fact<Node>>,
-    right: HashSet<Fact<Node>>
-}
-
 fn solve<Node>(core_scope: &ScopeRules<Node>, cs: Vec<Constraint<Node>>) -> ScopeRules<Node>
     where Node: PartialEq + Copy + Eq + Hash + fmt::Display
 {
@@ -119,6 +114,13 @@ fn solve<Node>(core_scope: &ScopeRules<Node>, cs: Vec<Constraint<Node>>) -> Scop
     }
 
     enum Side { Left, Right }
+
+
+    struct Equation<Node> {
+        left: HashSet<Fact<Node>>,
+        right: HashSet<Fact<Node>>
+    }
+
 
     // Setup efficient representation of constraints.
     // fact_posns: gives the constraints that a fact appears in
@@ -221,11 +223,16 @@ fn solve<Node>(core_scope: &ScopeRules<Node>, cs: Vec<Constraint<Node>>) -> Scop
 #[cfg(test)]
 mod tests {
     use std::fmt;
+    use std::str;
     use std::time::SystemTime;
 
     use super::*;
     use term::{Term, RewriteRule};
     use term::Term::*;
+
+    use source::SourceFile;
+    use lexer::Lexer;
+    use parser::{parse_rewrite_rule};
 
     use self::Node::*;
 
@@ -238,6 +245,18 @@ mod tests {
                 Let => write!(f, "Let"),
                 Apply => write!(f, "Apply"),
                 Lambda => write!(f, "Lambda")
+            }
+        }
+    }
+
+    impl str::FromStr for Node {
+        type Err = String;
+        fn from_str(s: &str) -> Result<Node, String> {
+            match s {
+                "Let"    => Ok(Let),
+                "Apply"  => Ok(Apply),
+                "Lambda" => Ok(Lambda),
+                _ => Err(String::from("Unknown Node"))
             }
         }
     }
@@ -261,11 +280,9 @@ mod tests {
 
     #[test]
     fn constraint_generation() {
-        let rule_1 = {
-            let lhs = Stx(Let, vec!(hole("a"), hole("b"), hole("c")));
-            let rhs = Stx(Apply, vec!(Stx(Lambda, vec!(hole("a"), hole("c"))), hole("b")));
-            RewriteRule::new(lhs, rhs)
-        };
+        let rule_1: RewriteRule<Node, usize> =
+            parse_rewrite_rule(&SourceFile::from_str(
+                "rule (Let a b c) => (Apply Lambda a c) b)" ));
 
         /*
         // To show elapsed time:
@@ -273,7 +290,7 @@ mod tests {
         let actual_constraints: Vec<Constraint<Node>> = gen_constrs(&rule_1);
         println!("{:?}", now.elapsed());
         panic!();
-        /*
+        */
 
         let actual_constraints: Vec<String> = gen_constrs(&rule_1).iter()
             .map(|c| { format!("{}", c) })

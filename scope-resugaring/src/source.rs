@@ -105,6 +105,10 @@ impl<'a> Span<'a> {
         self.end - self.start
     }
 
+    pub fn as_str(&self) -> &'a str {
+        &self.source.text[self.start.pos .. self.end.pos]
+    }
+/*
     pub fn start(self) -> Span<'a> {
         Span::new(self.source, self.start, self.start)
     }
@@ -112,6 +116,7 @@ impl<'a> Span<'a> {
     pub fn end(self) -> Span<'a> {
         Span::new(self.source, self.end, self.end)
     }
+*/
 }
 
 impl<'a> fmt::Display for Span<'a> {
@@ -143,6 +148,8 @@ impl<'a> Span<'a> {
     }
 }
 
+
+
 pub trait AsSpan<'a> {
     fn span(&self) -> Span<'a>;
 }
@@ -157,10 +164,11 @@ pub struct SourceFile {
 }
 
 impl SourceFile {
-
+/*
     pub fn empty() -> SourceFile {
         SourceFile::new("!Empty".to_string(), "".to_string())
     }
+*/
 
     pub fn open<P: AsRef<Path>>(path: P) -> Result<SourceFile, io::Error> {
         // TODO: Some sort of error checking maybe
@@ -185,6 +193,10 @@ impl SourceFile {
         }
     }
 
+    pub fn from_str(text: &str) -> SourceFile {
+        SourceFile::new(String::from("[Inline String]"), String::from(text))
+    }
+/*
     pub fn start(&self) -> Span {
         Span::new(self, Pos::new(0), Pos::new(0))
     }
@@ -192,6 +204,7 @@ impl SourceFile {
     pub fn end(&self) -> Span {
         Span::new(self, Pos::new(self.text.len()), Pos::new(self.text.len()))
     }
+*/
 
     pub fn pos_to_loc(&self, pos: Pos) -> Loc {
         let res = self.line_splits.binary_search(&pos);
