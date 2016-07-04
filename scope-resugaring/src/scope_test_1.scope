@@ -1,0 +1,12 @@
+language Test {
+  Lambda 2 {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  Apply 2 {
+    import 1;
+    import 2;
+  }
+  rule (Let a b c) => (Apply (Lambda a c) b)
+}

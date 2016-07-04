@@ -2,92 +2,9 @@ use std::fmt;
 use std::collections::{HashSet, HashMap};
 use std::hash::Hash;
 
-use preorder::Preorder;
+use preorder::{Elem, Lt, Preorder};
+use preorder::Elem::{Imp, Exp, Child};
 use term::{Term, RewriteRule};
-
-use self::Elem::*;
-
-
-// Section 4.4
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Elem {
-    Imp,
-    Exp,
-    Child(usize)
-}
-
-impl From<Elem> for usize {
-    fn from(elem: Elem) -> usize {
-        match elem {
-            Imp => 0,
-            Exp => 1,
-            Child(i) => i + 2
-        }
-    }
-}
-
-impl From<usize> for Elem {
-    fn from(size: usize) -> Elem {
-        match size {
-            0 => Imp,
-            1 => Exp,
-            i => Child(i - 2)
-        }
-    }
-}
-
-impl fmt::Display for Elem {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Imp => write!(f, "⊤"),
-            Exp => write!(f, "⊥"),
-            Child(i)   => write!(f, "{}", i + 1)
-        }
-    }
-}
-
-
-// Section 4.4
-// left <. right
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Fact<Node> {
-    node: Node,
-    left: Elem,
-    right: Elem
-}
-
-impl<Node> Fact<Node> {
-    pub fn new(node: Node, left: Elem, right: Elem) -> Fact<Node> {
-        Fact{
-            node: node,
-            left: left,
-            right: right
-        }
-    }
-}
-
-impl<Node> fmt::Display for Fact<Node>
-    where Node: fmt::Display
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match (self.left, self.right) {
-            (Child(a), Imp)      => write!(f, "import {}", a + 1),
-            (Exp, Child(b))      => write!(f, "export {}", b + 1),
-            (Child(a), Child(b)) => write!(f, "bind {} in {}", b + 1, a + 1),
-            (Exp, Imp)           => write!(f, "export imports"),
-            (a, b) => write!(f, "[invalid fact {} ⋖ {}]", a, b)
-//            (a, b) => panic!("Attempted to print invalid fact: {} ⋖ {}", a, b)
-        }
-    }
-}
-
-impl<Node> fmt::Debug for Fact<Node>
-    where Node: fmt::Display
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {} ⋖ {}", self.node, self.left, self.right)
-    }
-}
 
 
 // Section 4.4
@@ -100,7 +17,6 @@ impl<Node> fmt::Display for ScopeRule<Node>
     where Node: fmt::Display + Copy 
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let arity = self.arity();
         try!(write!(f, "{} {} {{\n", self.node, self.arity()));
         for fact in self.iter() {
             try!(write!(f, "    {}\n", fact))
@@ -110,39 +26,44 @@ impl<Node> fmt::Display for ScopeRule<Node>
 }
 
 impl<Node> ScopeRule<Node> {
-    pub fn new(node: Node, arity: usize, facts: Vec<(Elem, Elem)>) -> ScopeRule<Node>
-        where Node: fmt::Display + Copy {
+    pub fn new(node: Node, arity: usize, facts: Vec<Lt>) -> ScopeRule<Node>
+        where Node: fmt::Display + Copy
+    {
         // Scope Rule Axiom 1/4 (transitivity): guaranteed by Preorder.
         let mut order = Preorder::new_non_reflexive(arity + 2);
-        for &(left, right) in facts.iter() {
+        for fact in facts.into_iter() {
             // Scope Rule Axiom 2/4
-            if right == Exp {
+            if fact.right == Exp {
                 panic!("Cannot import bindings from {}", Exp)
             }
             // Scope Rule Axiom 3/4
-            if left == Imp {
+            if fact.left == Imp {
                 panic!("Cannot export bindings from {}", Imp)
             }
-            let left_index = usize::from(left);
-            if left_index >= arity + 2 {
-                panic!("Child {} is out of bounds; this rule has arity {}", left, arity);
+            if let Child(i) = fact.left {
+                if i > arity {
+                    panic!("Child {} is out of bounds; this rule has arity {}", fact.left, arity);
+                }
             }
-            let right_index = usize::from(right);
-            if right_index >= arity + 2 {
-                panic!("Child {} is out of bounds; this rule has arity {}", left, arity);
+            if let Child(j) = fact.right {
+                if j > arity {
+                    panic!("Child {} is out of bounds; this rule has arity {}", fact.right, arity);
+                }
             }
-            order.insert((left_index, right_index));
+            order.insert(fact);
         }
         // Scope Rule Axiom 4/4
-        order.insert((usize::from(Exp), usize::from(Imp)));
+        order.insert(Lt::new(Exp, Imp));
         ScopeRule{
             node: node,
             order: order
         }
     }
 
-    pub fn iter(&self) -> Iter<Node> where Node: Copy {
-        let pairs = self.order.as_pairs();
+    pub fn iter(&self) -> Iter<Node>
+        where Node: Copy
+    {
+        let pairs = self.order.facts();
         Iter{
             node: self.node,
             pairs: pairs
@@ -154,13 +75,17 @@ impl<Node> ScopeRule<Node> {
     }
 
     pub fn lt(&self, left: Elem, right: Elem) -> bool {
-        self.order.lt((usize::from(left), usize::from(right)))
+        self.contains(Lt::new(left, right))
+    }
+
+    pub fn contains(&self, fact: Lt) -> bool {
+        self.order.contains(fact)
     }
 }
 
 pub struct Iter<Node> {
     node: Node,
-    pairs: Vec<(usize, usize)>
+    pairs: Vec<Lt>
 }
 
 impl<Node> Iterator for Iter<Node> where Node: Copy {
@@ -168,7 +93,32 @@ impl<Node> Iterator for Iter<Node> where Node: Copy {
     fn next(&mut self) -> Option<Fact<Node>> {
         match self.pairs.pop() {
             None => None,
-            Some((a, b)) => Some(Fact::new(self.node, Elem::from(a), Elem::from(b)))
+            Some(lt) => Some(Fact::new(self.node, lt.left, lt.right))
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Fact<Node> {
+    node: Node,
+    left: Elem,
+    right: Elem
+}
+
+impl<Node> fmt::Display for Fact<Node>
+    where Node: fmt::Display
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}: {} ⋖ {}", self.node, self.left, self.right)
+    }
+}
+
+impl<Node> Fact<Node> {
+    pub fn new(node: Node, left: Elem, right: Elem) -> Fact<Node> {
+        Fact{
+            node: node,
+            left: left,
+            right: right
         }
     }
 }
@@ -210,14 +160,11 @@ impl<Node> ScopeRules<Node> {
     pub fn insert(&mut self, fact: Fact<Node>) -> Vec<Fact<Node>>
         where Node: Copy + Eq + Hash
     {
-        let node = fact.node;
-        let ref mut rule = self.rules.get_mut(&node).unwrap();
-        let mut transitive_closure_facts = vec!();
-        for pair in rule.order.insert((usize::from(fact.left), usize::from(fact.right))) {
-            let fact = Fact::new(node, Elem::from(pair.0), Elem::from(pair.1));
-            transitive_closure_facts.push(fact);
-        }
-        transitive_closure_facts
+        let lt = Lt::new(fact.left, fact.right);
+        let ref mut rule = self.rules.get_mut(&fact.node).unwrap();
+        rule.order.insert(lt).iter().map(|lt| {
+            Fact::new(fact.node, lt.left, lt.right)
+        }).collect()
     }
 
     pub fn complement(&self) -> HashSet<Fact<Node>>
@@ -225,14 +172,15 @@ impl<Node> ScopeRules<Node> {
     {
         let mut complement = HashSet::new();
         for rule in self.rules.values() {
-            for pair in rule.order.complement_as_pairs().iter() {
-                let fact = Fact::new(rule.node, Elem::from(pair.0), Elem::from(pair.1));
-                complement.insert(fact);
+            for lt in rule.order.complement().into_iter() {
+                complement.insert(Fact::new(rule.node, lt.left, lt.right));
             }
         }
         complement
     }
 }
+
+
 
 pub struct Language<Node, Val> {
     pub name: String,

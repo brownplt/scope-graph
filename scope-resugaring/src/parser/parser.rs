@@ -3,38 +3,18 @@ use std::str::FromStr;
 use std::fmt;
 use std::hash::Hash;
 
-use source::SourceFile;
-use lexer::{Lexeme, Token, Lexer};
+use parser::source::SourceFile;
+use parser::lexer::{Lexeme, Token, Lexer};
 use term::{Term, Var, RewriteRule};
-use rule::Elem::{Child, Imp, Exp};
-use rule::{Fact, ScopeRule, Elem, Language};
+use preorder::Elem::{Child, Imp, Exp};
+use preorder::{Elem, Lt};
+use rule::{ScopeRule, Language};
 
 
-
-pub fn parse_rewrite_rule<'s, Node, Val>(src: &'s SourceFile) -> RewriteRule<Node, Val>
-    where Node: FromStr, Node::Err: fmt::Debug
-{
-    let mut parser = Parser::from_source(src);
-    let ans = parser.parse_rewrite_rule().unwrap();
-    parser.parse_eof("Rewrite Rule");
-    ans
-}
-
-pub fn parse_term<'s, Node, Val>(src: &'s SourceFile) -> Term<Node, Val>
-    where Node: FromStr, Node::Err: fmt::Debug
-{
-    Parser::from_source(src).parse_term().unwrap()
-}
-
-pub fn parse_language<'s, Node, Val>(src: &'s SourceFile) -> Language<Node, Val>
-    where Node: FromStr + Copy + Eq + Hash + fmt::Display, Node::Err: fmt::Debug
-{
-    Parser::from_source(src).parse_language().unwrap()
-}
 
 type Stream<'s> = Peekable<Lexer<'s>>;
 
-struct Parser<'s> {
+pub struct Parser<'s> {
     stream: Peekable<Lexer<'s>>
 }
 
@@ -45,7 +25,7 @@ impl<'s> Parser<'s> {
         }
     }
 
-    fn from_source(src: &'s SourceFile) -> Parser<'s> {
+    pub fn from_source(src: &'s SourceFile) -> Parser<'s> {
         let lexer = Lexer::new(src);
         Parser::new(lexer)
     }
@@ -55,7 +35,7 @@ impl<'s> Parser<'s> {
             Err(()) => {
                 match self.stream.next() {
                     None => {
-                        panic!("Expected {}, but found EOF");
+                        panic!("Expected {}, but found EOF", expected);
                     }
                     Some(lex) => {
                         let found = lex.span.as_str();
@@ -68,7 +48,7 @@ impl<'s> Parser<'s> {
         }
     }
 
-    fn parse_eof(&mut self, expected: &str) {
+    pub fn parse_eof(&mut self) {
        match self.stream.peek() {
            None => (),
            Some(lex) => {
@@ -139,7 +119,7 @@ impl<'s> Parser<'s> {
         Ok(Term::Decl(Var::new(&format!("{}", lex))))
     }
 
-    fn parse_term<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
+    pub fn parse_term<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
         where Node: FromStr, Node::Err: fmt::Debug
     {
         Err(())
@@ -149,7 +129,7 @@ impl<'s> Parser<'s> {
             .or_else(|_| self.parse_decl())
     }
 
-    fn parse_rewrite_rule<Node, Val>(&mut self) -> Result<RewriteRule<Node, Val>, ()>
+    pub fn parse_rewrite_rule<Node, Val>(&mut self) -> Result<RewriteRule<Node, Val>, ()>
         where Node: FromStr, Node::Err: fmt::Debug
     {
         try!(self.parse_token(Token::Rule));
@@ -172,45 +152,45 @@ impl<'s> Parser<'s> {
         Ok(usize::from_str(n.span.as_str()).unwrap())
     }
 
-    fn parse_child(&mut self) -> usize
+    fn parse_child_index(&mut self) -> usize
     {
         let i = self.parse_num();
         let i = self.check("Index of subterm", i);
         if i == 0 {
             panic!("Subterm index cannot be 0 (it is 1-indexed)")
         }
-        i - 1
+        i
     }
 
-    fn parse_fact_import(&mut self) -> Result<(Elem, Elem), ()>
+    fn parse_fact_import(&mut self) -> Result<Lt, ()>
     {
         try!(self.parse_token(Token::Import));
-        let i = self.parse_child();
-        Ok((Child(i), Imp))
+        let i = self.parse_child_index();
+        Ok(Lt::new(Child(i), Imp))
     }
 
-    fn parse_fact_export(&mut self) -> Result<(Elem, Elem), ()>
+    fn parse_fact_export(&mut self) -> Result<Lt, ()>
     {
         try!(self.parse_token(Token::Export));
-        let i = self.parse_child();
-        Ok((Exp, Child(i)))
+        let i = self.parse_child_index();
+        Ok(Lt::new(Exp, Child(i)))
     }
 
-    fn parse_fact_sibling(&mut self) -> Result<(Elem, Elem), ()>
+    fn parse_fact_sibling(&mut self) -> Result<Lt, ()>
     {
         try!(self.parse_token(Token::Bind));
         
-        let i = self.parse_child();
+        let i = self.parse_child_index();
         
         let _in = self.parse_token(Token::In);
         self.check("`in`", _in);
         
-        let j = self.parse_child();
-        
-        Ok((Child(j), Child(i)))
+        let j = self.parse_child_index();
+
+        Ok(Lt::new(Child(j), Child(i)))
     }
 
-    fn parse_fact(&mut self) -> Result<(Elem, Elem), ()>
+    fn parse_fact(&mut self) -> Result<Lt, ()>
     {
         let fact = try!(Err(())
             .or_else(|_| self.parse_fact_import())
@@ -245,7 +225,7 @@ impl<'s> Parser<'s> {
         Ok(ScopeRule::new(node, arity, facts))
     }
 
-    fn parse_language<Node, Val>(&mut self) -> Result<Language<Node, Val>, ()>
+    pub fn parse_language<Node, Val>(&mut self) -> Result<Language<Node, Val>, ()>
         where Node: Copy + FromStr + Eq + Hash + fmt::Display, Node::Err: fmt::Debug
     {
         try!(self.parse_token(Token::Language));

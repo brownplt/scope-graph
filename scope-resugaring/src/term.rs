@@ -1,9 +1,6 @@
 use std::fmt;
 use std::collections::HashMap;
 
-
-use fresh::Atom;
-
 use self::Term::*;
 
 
@@ -11,7 +8,6 @@ pub type Name = String;
 
 pub struct Var {
     pub name: Name,
-    pub id: Atom
 }
 
 impl fmt::Display for Var {
@@ -23,10 +19,8 @@ impl fmt::Display for Var {
 impl Var {
     pub fn new(name: &str) -> Var {
         let name = String::from(name);
-        let id = Atom::fresh();
         Var{
             name: name,
-            id: id
         }
     }
 }

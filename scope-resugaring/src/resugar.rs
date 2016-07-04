@@ -3,11 +3,12 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use util::debug_sep;
+use util::display_sep;
+use preorder::Elem::{Imp, Exp, Child};
 use rule::{Fact, ScopeRules, Language};
-use rule::Elem::{Imp, Exp, Child};
 use term::{RewriteRule, Term};
 use term::Term::*;
+
 
 
 type Conj<Node> = Vec<Fact<Node>>;
@@ -28,9 +29,9 @@ impl<Node> Constraint<Node> {
 
 impl<Node> fmt::Display for Constraint<Node> where Node: fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(debug_sep(f, " & ", self.left.iter()));
+        try!(display_sep(f, " & ", self.left.iter()));
         try!(write!(f, "   iff   "));
-        debug_sep(f, " & ", self.right.iter())
+        display_sep(f, " & ", self.right.iter())
     }
 }
 
@@ -45,6 +46,9 @@ pub fn gen_constrs<Node, Val>(rule: &RewriteRule<Node, Val>) -> Vec<Constraint<N
             let (ref lpath_1, ref rpath_1) = rule.holes[hole_1.as_str()];
             let (ref lpath_2, ref rpath_2) = rule.holes[hole_2.as_str()];
             constraints.push(Constraint::new(
+                gen_conj(&rule.left,  lpath_1, lpath_2),
+                gen_conj(&rule.right, rpath_1, rpath_2)));
+            println!("{}", Constraint::new(
                 gen_conj(&rule.left,  lpath_1, lpath_2),
                 gen_conj(&rule.right, rpath_1, rpath_2)));
         }
@@ -67,12 +71,12 @@ fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj
                     }
                     (None, Some(&b0)) => {
                         // SA-Child
-                        conj.push(Fact::new(*node, Exp, Child(b0)));
+                        conj.push(Fact::new(*node, Exp, Child(b0 + 1)));
                         gen(term.child(b0), &[], &b[1..], conj);
                     }
                     (Some(&a0), None) => {
                         // SA-Parent
-                        conj.push(Fact::new(*node, Child(a0), Imp));
+                        conj.push(Fact::new(*node, Child(a0 + 1), Imp));
                         gen(term.child(a0), &a[1..], &[], conj);
                     }
                     (Some(&a0), Some(&b0)) => {
@@ -81,7 +85,7 @@ fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj
                             gen(term.child(a0), &a[1..], &b[1..], conj);
                         } else {
                             // SA-Sibling
-                            conj.push(Fact::new(*node, Child(a0), Child(b0)));
+                            conj.push(Fact::new(*node, Child(a0 + 1), Child(b0 + 1)));
                             gen(term.child(a0), &a[1..], &[], conj);
                             gen(term.child(b0), &[], &b[1..], conj);
                         }
@@ -246,12 +250,10 @@ mod tests {
     use std::time::SystemTime;
 
     use super::*;
-    use term::{Term, RewriteRule};
-    use term::Term::*;
-    use rule::{Fact, Language, Elem};
-    use rule::Elem::{Imp, Exp, Child};
-    use source::SourceFile;
-    use lexer::Lexer;
+    use term::{RewriteRule};
+    use rule::{Fact, Language};
+    use preorder::Elem::{Imp, Exp, Child};
+    use parser::SourceFile;
     use parser::{parse_rewrite_rule, parse_language};
 
     use self::Node::*;
@@ -281,42 +283,17 @@ mod tests {
         }
     }
 
-    fn hole(name: &str) -> Term<Node, usize> {
-        Hole(String::from(name))
-    }
-
-    #[test]
-    fn constraint_solving() {
-        let mut lang_1: Language<Node, usize> =
-            parse_language(&SourceFile::open("src/scope_test_1.scope").unwrap());
-
-        resugar_scope(&mut lang_1);
-
-        let ref let_rule = lang_1.surf_scope.rules[&Let];
-        let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
-        assert_eq!(let_facts.len(), 5);
-        assert!(let_rule.lt(Exp, Imp));
-        assert!(let_rule.lt(Child(0), Imp));
-        assert!(let_rule.lt(Child(1), Imp));
-        assert!(let_rule.lt(Child(2), Imp));
-        assert!(let_rule.lt(Child(2), Child(0)));
-        
-        println!("\n{}", lang_1.surf_scope);
-    }
-
     #[test]
     fn constraint_generation() {
         let rule_1: RewriteRule<Node, usize> =
             parse_rewrite_rule(&SourceFile::from_str(
                 "rule (Let a b c) => (Apply (Lambda a c) b)" ));
 
-        /*
-        // To show elapsed time:
-        let now = SystemTime::now();
-        let actual_constraints: Vec<Constraint<Node>> = gen_constrs(&rule_1);
-        println!("{:?}", now.elapsed());
-        panic!();
-        */
+        // // To show elapsed time:
+        // let now = SystemTime::now();
+        // let actual_constraints: Vec<Constraint<Node>> = gen_constrs(&rule_1);
+        // println!("{:?}", now.elapsed());
+        // panic!();
 
         let actual_constraints: Vec<String> = gen_constrs(&rule_1).iter()
             .map(|c| { format!("{}", c) })
@@ -342,4 +319,24 @@ mod tests {
         
         assert_eq!(actual_constraints.as_slice(), expected_constraints);
     }
+
+    #[test]
+    fn constraint_solving() {
+        let mut lang_1: Language<Node, usize> =
+            parse_language(&SourceFile::open("src/scope_test_1.scope").unwrap());
+
+        resugar_scope(&mut lang_1);
+
+        let ref let_rule = lang_1.surf_scope.rules[&Let];
+        let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
+        assert_eq!(let_facts.len(), 5);
+        assert!(let_rule.lt(Exp, Imp));
+        assert!(let_rule.lt(Child(1), Imp));
+        assert!(let_rule.lt(Child(2), Imp));
+        assert!(let_rule.lt(Child(2), Imp));
+        assert!(let_rule.lt(Child(3), Child(1)));
+        
+        println!("\n{}", lang_1.surf_scope);
+    }
+
 }

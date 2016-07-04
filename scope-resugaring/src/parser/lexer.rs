@@ -1,7 +1,7 @@
 use std::fmt;
 
 use regex::Regex;
-use source::{Pos, Span, SourceFile};
+use parser::source::{Pos, Span, SourceFile};
 
 use self::Token::*;
 
