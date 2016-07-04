@@ -1,0 +1,42 @@
+language Pyret {
+
+  Lambda 3 {
+    import 1;
+    import 2;
+    import 3;
+    bind 1 in 3;
+  }
+
+  Apply 2 {
+    import 1;
+    import 2;
+  }
+
+  Arg 2 {
+    import 1;
+    import 2;
+  }
+
+  EndArgs 0 {}
+
+  EndParams 0 {}
+
+  Param 2 {
+    import 1;
+    import 2;
+    bind 1 in 2;
+    export 2;
+  }
+
+  rule (For iter (SplitForBindsDone params args) ann body)
+    => (Apply iter (Arg (Lambda params ann body) args))
+  rule (For iter bindings ann body)
+    => (For iter (SplitForBinds bindings) ann body)
+
+  rule (SplitForBinds (EndForBinds))
+    => (SplitForBindsDone (EndParams) (EndArgs))
+  rule (SplitForBinds (ForBind param arg (SplitForBindsDone params args)))
+     => (SplitForBindsDone (Param param params) (Arg arg args))
+  rule (SplitForBinds (ForBind param arg binds))
+    => (SplitForBinds (ForBind param arg (SplitForBinds binds)))
+}

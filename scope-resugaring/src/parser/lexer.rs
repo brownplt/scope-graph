@@ -39,7 +39,7 @@ fn make_matcher(token: Token, regex: &str) -> (Token, Regex) {
 
 lazy_static! {
     static ref MATCHERS: [(Token, Regex); 17] = [
-        make_matcher(Language, "language"),
+        make_matcher(Language, "language\\b"),
         make_matcher(Semicolon, ";"),
         make_matcher(LBrace  , "\\{"),
         make_matcher(RBrace  , "\\}"),
@@ -48,10 +48,10 @@ lazy_static! {
         make_matcher(RParen  , "\\)"),
         make_matcher(Rule    , "rule"),
         make_matcher(Arrow   , "=>"),
-        make_matcher(Bind    , "bind"),
-        make_matcher(In      , "in"),
-        make_matcher(Import  , "import"),
-        make_matcher(Export  , "export"),
+        make_matcher(Bind    , "bind\\b"),
+        make_matcher(In      , "in\\b"),
+        make_matcher(Import  , "import\\b"),
+        make_matcher(Export  , "export\\b"),
         make_matcher(DeclMark, "@"),
         make_matcher(RefnMark, "$"),
         make_matcher(Num     , "[0-9]+"),

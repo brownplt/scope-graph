@@ -113,7 +113,8 @@ pub fn empty_path() -> Path {
 pub struct RewriteRule<Node, Val> {
     pub left: Term<Node, Val>,
     pub right: Term<Node, Val>,
-    pub holes: HashMap<Name, (Path, Path)>
+    pub holes: HashMap<Name, (Path, Path)>,
+    pub holes2: HashMap<Name, Vec<(Path, Path)>>
 }
 
 impl<Node, Val> RewriteRule<Node, Val> {
@@ -126,19 +127,27 @@ impl<Node, Val> RewriteRule<Node, Val> {
             }
         }
         let mut holes = HashMap::new();
+        let mut holes2: HashMap<Name, Vec<(Path, Path)>> = HashMap::new();
         for (hole, lpath) in left_holes.into_iter() {
             match right_holes.remove(&hole) {
                 Some(rpath) => {
-                    holes.insert(hole, (lpath, rpath));
+                    holes.insert(hole.clone(), (lpath.clone(), rpath.clone()));
+                    if holes2.contains_key(&hole) {
+                        holes2.get_mut(&hole).unwrap().push((lpath, rpath));
+                    } else {
+                        holes2.insert(hole, vec!((lpath, rpath)));
+                    }
                 }
                 None => {}
             }
         }
         holes.insert(String::from(""), (empty_path(), empty_path()));
+        holes2.insert(String::from(""), vec!((empty_path(), empty_path())));
         RewriteRule{
             left: left,
             right: right,
-            holes: holes
+            holes: holes,
+            holes2: holes2
         }
     }
 }

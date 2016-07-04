@@ -101,7 +101,7 @@ impl<'s> Parser<'s> {
             subterms.push(term);
         }
         let _rp = self.parse_token(Token::RParen);
-        self.check("Right Paren", _rp);
+        self.check("End of rule", _rp);
         Ok(Term::Stx(node, subterms))
     }
 
@@ -204,7 +204,7 @@ impl<'s> Parser<'s> {
     }
 
     fn parse_scope_rule<Node>(&mut self) -> Result<ScopeRule<Node>, ()>
-        where Node: Copy + FromStr + fmt::Display, Node::Err: fmt::Debug
+        where Node: Clone + FromStr + fmt::Display, Node::Err: fmt::Debug
     {
         let node = try!(self.parse_node());
         
@@ -226,7 +226,7 @@ impl<'s> Parser<'s> {
     }
 
     pub fn parse_language<Node, Val>(&mut self) -> Result<Language<Node, Val>, ()>
-        where Node: Copy + FromStr + Eq + Hash + fmt::Display, Node::Err: fmt::Debug
+        where Node: Clone + FromStr + Eq + Hash + fmt::Display, Node::Err: fmt::Debug
     {
         try!(self.parse_token(Token::Language));
         

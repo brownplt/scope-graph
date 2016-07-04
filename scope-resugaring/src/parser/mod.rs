@@ -32,7 +32,7 @@ pub fn parse_term<'s, Node, Val>(src: &'s SourceFile) -> Term<Node, Val>
 */
 
 pub fn parse_language<'s, Node, Val>(src: &'s SourceFile) -> Language<Node, Val>
-    where Node: FromStr + Copy + Eq + Hash + fmt::Display, Node::Err: fmt::Debug
+    where Node: FromStr + Clone + Eq + Hash + fmt::Display, Node::Err: fmt::Debug
 {
     Parser::from_source(src).parse_language().unwrap()
 }

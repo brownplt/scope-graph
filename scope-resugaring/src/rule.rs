@@ -14,7 +14,7 @@ pub struct ScopeRule<Node> {
 }
 
 impl<Node> fmt::Display for ScopeRule<Node>
-    where Node: fmt::Display + Copy 
+    where Node: fmt::Display + Clone 
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(write!(f, "{} {} {{\n", self.node, self.arity()));
@@ -27,7 +27,7 @@ impl<Node> fmt::Display for ScopeRule<Node>
 
 impl<Node> ScopeRule<Node> {
     pub fn new(node: Node, arity: usize, facts: Vec<Lt>) -> ScopeRule<Node>
-        where Node: fmt::Display + Copy
+        where Node: fmt::Display + Clone
     {
         // Scope Rule Axiom 1/4 (transitivity): guaranteed by Preorder.
         let mut order = Preorder::new_non_reflexive(arity + 2);
@@ -61,11 +61,11 @@ impl<Node> ScopeRule<Node> {
     }
 
     pub fn iter(&self) -> Iter<Node>
-        where Node: Copy
+        where Node: Clone
     {
         let pairs = self.order.facts();
         Iter{
-            node: self.node,
+            node: self.node.clone(),
             pairs: pairs
         }
     }
@@ -88,17 +88,17 @@ pub struct Iter<Node> {
     pairs: Vec<Lt>
 }
 
-impl<Node> Iterator for Iter<Node> where Node: Copy {
+impl<Node> Iterator for Iter<Node> where Node: Clone {
     type Item = Fact<Node>;
     fn next(&mut self) -> Option<Fact<Node>> {
         match self.pairs.pop() {
             None => None,
-            Some(lt) => Some(Fact::new(self.node, lt.left, lt.right))
+            Some(lt) => Some(Fact::new(self.node.clone(), lt.left, lt.right))
         }
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Fact<Node> {
     node: Node,
     left: Elem,
@@ -128,7 +128,7 @@ pub struct ScopeRules<Node> {
 }
 
 impl<Node> fmt::Display for ScopeRules<Node>
-    where Node: fmt::Display + Copy + Eq + Hash
+    where Node: fmt::Display + Clone + Eq + Hash
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for rule in self.rules.values() {
@@ -146,11 +146,11 @@ impl<Node> ScopeRules<Node> {
     }
 
     pub fn from_vec(rules: Vec<ScopeRule<Node>>) -> ScopeRules<Node>
-        where Node: Eq + Hash + Copy
+        where Node: Eq + Hash + Clone
     {
         let mut map = HashMap::new();
         for rule in rules.into_iter() {
-            map.insert(rule.node, rule);
+            map.insert(rule.node.clone(), rule);
         }
         ScopeRules{
             rules: map
@@ -158,22 +158,22 @@ impl<Node> ScopeRules<Node> {
     }
 
     pub fn insert(&mut self, fact: Fact<Node>) -> Vec<Fact<Node>>
-        where Node: Copy + Eq + Hash
+        where Node: Clone + Eq + Hash
     {
         let lt = Lt::new(fact.left, fact.right);
         let ref mut rule = self.rules.get_mut(&fact.node).unwrap();
         rule.order.insert(lt).iter().map(|lt| {
-            Fact::new(fact.node, lt.left, lt.right)
+            Fact::new(fact.node.clone(), lt.left, lt.right)
         }).collect()
     }
 
     pub fn complement(&self) -> HashSet<Fact<Node>>
-        where Node: Copy + Eq + Hash
+        where Node: Clone + Eq + Hash
     {
         let mut complement = HashSet::new();
         for rule in self.rules.values() {
             for lt in rule.order.complement().into_iter() {
-                complement.insert(Fact::new(rule.node, lt.left, lt.right));
+                complement.insert(Fact::new(rule.node.clone(), lt.left, lt.right));
             }
         }
         complement
@@ -194,17 +194,17 @@ impl<Node, Val> Language<Node, Val> {
            core_scope: Vec<ScopeRule<Node>>,
            rewrite_rules: Vec<RewriteRule<Node, Val>>)
                -> Language<Node, Val>
-        where Node: Copy + Eq + Hash + fmt::Display + 
+        where Node: Clone + Eq + Hash + fmt::Display + 
     {
         let mut surf_scope = vec!();
         fn gather_arities<Node, Val>(term: &Term<Node, Val>,
                                      surf_scope: &mut Vec<ScopeRule<Node>>)
-            where Node: Copy + fmt::Display
+            where Node: Clone + fmt::Display
         {
             match term {
-                &Term::Stx(node, ref subterms) => {
+                &Term::Stx(ref node, ref subterms) => {
                     let arity = subterms.len();
-                    surf_scope.push(ScopeRule::new(node, arity, vec!()));
+                    surf_scope.push(ScopeRule::new(node.clone(), arity, vec!()));
                     for term in subterms.iter() {
                         gather_arities(term, surf_scope)
                     }

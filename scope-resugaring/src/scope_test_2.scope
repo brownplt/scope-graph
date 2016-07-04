@@ -1,0 +1,18 @@
+language Test {
+  Lambda 2 {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  Apply 2 {
+    import 1;
+    import 2;
+  }
+  Unit 1 {
+    import 1;
+  }
+  rule (Let (Bind a b c) d)
+    => (Apply (Lambda a (Let c d)) b)
+  rule (Let (EndBinds) a)
+    => (Unit a)
+}
