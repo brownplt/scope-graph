@@ -6,7 +6,8 @@ use std::hash::Hash;
 use util::display_sep;
 use preorder::Elem::{Imp, Exp, Child};
 use rule::{Fact, ScopeRules, Language};
-use term::{RewriteRule, Term};
+use term::{RewriteRule, Term, Path};
+use term::Path::*;
 use term::Term::*;
 
 
@@ -44,17 +45,6 @@ pub fn gen_constrs<Node, Val>(rule: &RewriteRule<Node, Val>) -> Vec<Constraint<N
     holes.sort(); // Put in order for easy testing.
     for hole_1 in holes.iter() {
         for hole_2 in holes.iter() {
-            for &(ref lpath_1, ref rpath_1) in rule.holes2[hole_1.as_str()].iter() {
-                for &(ref lpath_2, ref rpath_2) in rule.holes2[hole_2.as_str()].iter() {
-                    constraints.push(Constraint::new(
-                        gen_conj(&rule.left,  lpath_1, lpath_2),
-                        gen_conj(&rule.right, rpath_1, rpath_2)));
-                    println!("{}", Constraint::new(
-                        gen_conj(&rule.left,  lpath_1, lpath_2),
-                        gen_conj(&rule.right, rpath_1, rpath_2)));
-                }
-            }
-/*
             let (ref lpath_1, ref rpath_1) = rule.holes[hole_1.as_str()];
             let (ref lpath_2, ref rpath_2) = rule.holes[hole_2.as_str()];
             constraints.push(Constraint::new(
@@ -63,16 +53,19 @@ pub fn gen_constrs<Node, Val>(rule: &RewriteRule<Node, Val>) -> Vec<Constraint<N
             println!("{}", Constraint::new(
                 gen_conj(&rule.left,  lpath_1, lpath_2),
                 gen_conj(&rule.right, rpath_1, rpath_2)));
-*/
         }
     }
     constraints
 }
 
-fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj<Node>
+fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &Path, b: &Path) -> Conj<Node>
     where Node: Clone + fmt::Display, Val: fmt::Display
 {
-    fn gen<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize], conj: &mut Vec<Fact<Node>>)
+    // true: downarrow, false: uparrow
+    fn gen<Node, Val>(term: &Term<Node, Val>,
+                      a: &[usize], a_sign: bool,
+                      b: &[usize], b_sign: bool,
+                      conj: &mut Vec<Fact<Node>>)
         where Node: Clone + fmt::Display, Val: fmt::Display
     {
         match term {
@@ -84,30 +77,31 @@ fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj
                     }
                     (None, Some(&b0)) => {
                         // SA-Child
-                        conj.push(Fact::new(node.clone(), Exp, Child(b0 + 1)));
-                        gen(term.child(b0), &[], &b[1..], conj);
+                        conj.push(Fact::new(node.clone(), Exp, Child(b0)));
+                        gen(term.child(b0), &[], a_sign, &b[1..], b_sign, conj);
                     }
                     (Some(&a0), None) => {
                         // SA-Parent
-                        conj.push(Fact::new(node.clone(), Child(a0 + 1), Imp));
-                        gen(term.child(a0), &a[1..], &[], conj);
+                        conj.push(Fact::new(node.clone(), Child(a0), Imp));
+                        gen(term.child(a0), &a[1..], a_sign, &[], b_sign, conj);
                     }
                     (Some(&a0), Some(&b0)) => {
                         if a0 == b0 && !term.child(a0).is_hole() {
                             // S-Lift
-                            gen(term.child(a0), &a[1..], &b[1..], conj);
+                            gen(term.child(a0), &a[1..], a_sign, &b[1..], b_sign, conj);
                         } else {
                             // SA-Sibling
-                            conj.push(Fact::new(node.clone(), Child(a0 + 1), Child(b0 + 1)));
-                            gen(term.child(a0), &a[1..], &[], conj);
-                            gen(term.child(b0), &[], &b[1..], conj);
+                            conj.push(Fact::new(node.clone(), Child(a0), Child(b0)));
+                            gen(term.child(a0), &a[1..], a_sign, &[], b_sign, conj);
+                            gen(term.child(b0), &[], a_sign, &b[1..], b_sign, conj);
                         }
                     }
                 }
             },
             &Hole(_) => {
-                if !a.is_empty() || !b.is_empty() {
-                    panic!("Internal error! Generate conjunction: bad path to hole")
+                if !(a.is_empty() && b.is_empty()) {
+                    panic!("Internal error! Generate conjunction: bad path to hole {:?} {:?}",
+                           a, b);
                 }
                 // Assuming (Exp <. Imp) for all terms t
                 // by Scope Rule axiom 4 (section 4.4)
@@ -116,7 +110,12 @@ fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj
         }
     }
     let mut conj = vec!();
-    gen(term, a, b, &mut conj);
+    match (a, b) {
+        (&PathToRoot, &PathToRoot)               => gen(term, &[], false, &[], true, &mut conj),
+        (&PathToRoot, &PathToHole(ref b))        => gen(term, &[], false, b, false, &mut conj),
+        (&PathToHole(ref a), &PathToRoot)        => gen(term, a, true, &[], true, &mut conj),
+        (&PathToHole(ref a), &PathToHole(ref b)) => gen(term, a, true, b, false, &mut conj)
+    }
     conj
 }
 
@@ -214,7 +213,6 @@ fn solve<Node>(cs: Vec<Constraint<Node>>,
             None => (),
             Some(posns) => {
                 for posn in posns.into_iter() {
-                    println!("Solve/posn {:?}", posn);
                     match posn.side {
                         Side::Left => {
                             // Delete it from the constraint
@@ -359,6 +357,9 @@ mod tests {
         let mut lang_1: Language<Node, usize> =
             parse_language(&SourceFile::open("src/scope_test_1.scope").unwrap());
 
+
+        // Example 1 from the paper (section 2.1: Single-arm Let)
+
         resugar_scope(&mut lang_1);
 
         let ref let_rule = lang_1.surf_scope.rules["Let"];
@@ -375,6 +376,9 @@ mod tests {
         let mut lang_2: Language<Node, usize> =
             parse_language(&SourceFile::open("src/scope_test_2.scope").unwrap());
 
+
+        // Example 1 from the paper (section 2.1: Multi-arm Let*)
+
         resugar_scope(&mut lang_2);
 
         let ref let_rule = lang_2.surf_scope.rules["Let"];
@@ -384,6 +388,7 @@ mod tests {
         assert!(let_rule.lt(Child(1), Imp));
         assert!(let_rule.lt(Child(2), Imp));
         assert!(let_rule.lt(Child(2), Child(1)));
+
         let ref bind_rule = lang_2.surf_scope.rules["Bind"];
         let bind_facts: Vec<Fact<Node>> = bind_rule.iter().collect();
         assert_eq!(bind_facts.len(), 7);
@@ -400,10 +405,31 @@ mod tests {
         let mut lang_3: Language<Node, usize> =
             parse_language(&SourceFile::open("src/pyret.scope").unwrap());
 
+
+        // Pyret language - for loop
+
         resugar_scope(&mut lang_3);
 
         println!("\n{}", lang_3.surf_scope);
-        panic!("");
+        let ref for_rule = lang_3.surf_scope.rules["For"];
+        let for_facts: Vec<Fact<Node>> = for_rule.iter().collect();
+        assert_eq!(for_facts.len(), 6);
+        assert!(for_rule.lt(Exp, Imp));
+        assert!(for_rule.lt(Child(1), Imp));
+        assert!(for_rule.lt(Child(2), Imp));
+        assert!(for_rule.lt(Child(3), Imp));
+        assert!(for_rule.lt(Child(4), Imp));
+        assert!(for_rule.lt(Child(4), Child(2)));
+
+        let ref bind_rule = lang_3.surf_scope.rules["ForBind"];
+        let bind_facts: Vec<Fact<Node>> = bind_rule.iter().collect();
+        assert_eq!(bind_facts.len(), 6);
+        assert!(bind_rule.lt(Exp, Imp));
+        assert!(bind_rule.lt(Child(1), Imp));
+        assert!(bind_rule.lt(Child(2), Imp));
+        assert!(bind_rule.lt(Child(3), Imp));
+        assert!(bind_rule.lt(Exp, Child(1)));
+        assert!(bind_rule.lt(Exp, Child(3)));
     }
 
 }

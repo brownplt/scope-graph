@@ -57,7 +57,7 @@ lazy_static! {
         make_matcher(Num     , "[0-9]+"),
         make_matcher(Name    , "[a-zA-Z][a-zA-Z_0-9-]*")
         ];
-    static ref WS_MATCHER: Regex = Regex::new("^[ \t\r\n]*").unwrap();
+    static ref WS_MATCHER: Regex = Regex::new("^([ \t\r\n]|\\(\\*[^\\*]*\\*\\))*").unwrap();
 }
 
 impl fmt::Display for Token {

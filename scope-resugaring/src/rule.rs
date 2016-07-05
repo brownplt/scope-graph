@@ -158,10 +158,13 @@ impl<Node> ScopeRules<Node> {
     }
 
     pub fn insert(&mut self, fact: Fact<Node>) -> Vec<Fact<Node>>
-        where Node: Clone + Eq + Hash
+        where Node: Clone + Eq + Hash + fmt::Display
     {
         let lt = Lt::new(fact.left, fact.right);
-        let ref mut rule = self.rules.get_mut(&fact.node).unwrap();
+        let ref mut rule = match self.rules.get_mut(&fact.node) {
+            None => panic!("Internal error: scope rule for {} not found", &fact.node),
+            Some(rule) => rule
+        };
         rule.order.insert(lt).iter().map(|lt| {
             Fact::new(fact.node.clone(), lt.left, lt.right)
         }).collect()
@@ -211,6 +214,9 @@ impl<Node, Val> Language<Node, Val> {
                 }
                 _ => ()
             }
+        }
+        for rule in core_scope.iter() {
+            surf_scope.push(ScopeRule::new(rule.node.clone(), rule.arity(), vec!()));
         }
         for rule in rewrite_rules.iter() {
             gather_arities(&rule.left, &mut surf_scope);

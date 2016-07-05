@@ -2,6 +2,7 @@ use std::fmt;
 use std::collections::HashMap;
 
 use self::Term::*;
+use self::Path::*;
 
 
 pub type Name = String;
@@ -61,7 +62,7 @@ impl<Node, Val> Term<Node, Val> {
     {
         match self {
             &Stx(_, ref subterms) => {
-                match subterms.get(i) {
+                match subterms.get(i - 1) {
                     None => panic!("Internal error! Term child index out of bounds: {}", i),
                     Some(term) => term
                 }
@@ -78,14 +79,14 @@ impl<Node, Val> Term<Node, Val> {
     }
 
     fn holes(&self) -> HashMap<Name, Path> {
-        fn recur<Node, Val>(term: &Term<Node, Val>, path: &mut Path, holes: &mut HashMap<Name, Path>) {
+        fn recur<Node, Val>(term: &Term<Node, Val>, path: &mut Vec<usize>, holes: &mut HashMap<Name, Path>) {
             match term {
                 &Decl(_)  => (),
                 &Refn(_)  => (),
                 &Value(_) => (),
                 &Stx(_, ref subterms) => {
                     for (i, subterm) in subterms.iter().enumerate() {
-                        path.push(i);
+                        path.push(i + 1);
                         recur(subterm, path, holes);
                         path.pop();
                     }
@@ -94,7 +95,7 @@ impl<Node, Val> Term<Node, Val> {
                     if holes.contains_key(hole) {
                         panic!("Rewrite rule contains duplicate hole: {}", hole);
                     }
-                    holes.insert(hole.clone(), path.clone());
+                    holes.insert(hole.clone(), PathToHole(path.clone()));
                 }
             }
         }
@@ -104,21 +105,41 @@ impl<Node, Val> Term<Node, Val> {
     }
 }
 
-pub type Path = Vec<usize>;
+pub enum Path {
+    PathToRoot,
+    PathToHole(Vec<usize>)
+}
 
-pub fn empty_path() -> Path {
-    vec!()
+impl Path {
+    pub fn is_empty_path(&self) -> bool {
+        match self {
+            &PathToRoot => false,
+            &PathToHole(ref path) => path.is_empty()
+        }
+    }
+
+    pub fn is_root_path(&self) -> bool {
+        match self {
+            &PathToRoot => true,
+            &PathToHole(_) => false
+        }
+    }
 }
 
 pub struct RewriteRule<Node, Val> {
     pub left: Term<Node, Val>,
     pub right: Term<Node, Val>,
-    pub holes: HashMap<Name, (Path, Path)>,
-    pub holes2: HashMap<Name, Vec<(Path, Path)>>
+    pub holes: HashMap<Name, (Path, Path)>
 }
 
 impl<Node, Val> RewriteRule<Node, Val> {
     pub fn new(left: Term<Node, Val>, right: Term<Node, Val>) -> RewriteRule<Node, Val> {
+        if left.is_hole() {
+            panic!("The LHS of a rewrite rule cannot be just a hole.");
+        }
+        if left.is_hole() || right.is_hole() {
+            panic!("The RHS of a rewrite rule cannot be just a hole.");
+        }
         let left_holes = left.holes();
         let mut right_holes = right.holes();
         for hole in right_holes.keys() {
@@ -127,27 +148,19 @@ impl<Node, Val> RewriteRule<Node, Val> {
             }
         }
         let mut holes = HashMap::new();
-        let mut holes2: HashMap<Name, Vec<(Path, Path)>> = HashMap::new();
         for (hole, lpath) in left_holes.into_iter() {
             match right_holes.remove(&hole) {
                 Some(rpath) => {
-                    holes.insert(hole.clone(), (lpath.clone(), rpath.clone()));
-                    if holes2.contains_key(&hole) {
-                        holes2.get_mut(&hole).unwrap().push((lpath, rpath));
-                    } else {
-                        holes2.insert(hole, vec!((lpath, rpath)));
-                    }
+                    holes.insert(hole, (lpath, rpath));
                 }
                 None => {}
             }
         }
-        holes.insert(String::from(""), (empty_path(), empty_path()));
-        holes2.insert(String::from(""), vec!((empty_path(), empty_path())));
+        holes.insert(String::from(""), (PathToRoot, PathToRoot));
         RewriteRule{
             left: left,
             right: right,
-            holes: holes,
-            holes2: holes2
+            holes: holes
         }
     }
 }
