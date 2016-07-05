@@ -6,8 +6,7 @@ use std::hash::Hash;
 use util::display_sep;
 use preorder::Elem::{Imp, Exp, Child};
 use rule::{Fact, ScopeRules, Language};
-use term::{RewriteRule, Term, Path};
-use term::Path::*;
+use term::{RewriteRule, Term};
 use term::Term::*;
 
 
@@ -58,14 +57,11 @@ pub fn gen_constrs<Node, Val>(rule: &RewriteRule<Node, Val>) -> Vec<Constraint<N
     constraints
 }
 
-fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &Path, b: &Path) -> Conj<Node>
+fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj<Node>
     where Node: Clone + fmt::Display, Val: fmt::Display
 {
     // true: downarrow, false: uparrow
-    fn gen<Node, Val>(term: &Term<Node, Val>,
-                      a: &[usize], a_sign: bool,
-                      b: &[usize], b_sign: bool,
-                      conj: &mut Vec<Fact<Node>>)
+    fn gen<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize], conj: &mut Vec<Fact<Node>>)
         where Node: Clone + fmt::Display, Val: fmt::Display
     {
         match term {
@@ -78,22 +74,22 @@ fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &Path, b: &Path) -> Conj<Node>
                     (None, Some(&b0)) => {
                         // SA-Child
                         conj.push(Fact::new(node.clone(), Exp, Child(b0)));
-                        gen(term.child(b0), &[], a_sign, &b[1..], b_sign, conj);
+                        gen(term.child(b0), &[], &b[1..], conj);
                     }
                     (Some(&a0), None) => {
                         // SA-Parent
                         conj.push(Fact::new(node.clone(), Child(a0), Imp));
-                        gen(term.child(a0), &a[1..], a_sign, &[], b_sign, conj);
+                        gen(term.child(a0), &a[1..], &[], conj);
                     }
                     (Some(&a0), Some(&b0)) => {
                         if a0 == b0 && !term.child(a0).is_hole() {
                             // S-Lift
-                            gen(term.child(a0), &a[1..], a_sign, &b[1..], b_sign, conj);
+                            gen(term.child(a0), &a[1..], &b[1..], conj);
                         } else {
                             // SA-Sibling
                             conj.push(Fact::new(node.clone(), Child(a0), Child(b0)));
-                            gen(term.child(a0), &a[1..], a_sign, &[], b_sign, conj);
-                            gen(term.child(b0), &[], a_sign, &b[1..], b_sign, conj);
+                            gen(term.child(a0), &a[1..], &[], conj);
+                            gen(term.child(b0), &[], &b[1..], conj);
                         }
                     }
                 }
@@ -110,12 +106,7 @@ fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &Path, b: &Path) -> Conj<Node>
         }
     }
     let mut conj = vec!();
-    match (a, b) {
-        (&PathToRoot, &PathToRoot)               => gen(term, &[], false, &[], true, &mut conj),
-        (&PathToRoot, &PathToHole(ref b))        => gen(term, &[], false, b, false, &mut conj),
-        (&PathToHole(ref a), &PathToRoot)        => gen(term, a, true, &[], true, &mut conj),
-        (&PathToHole(ref a), &PathToHole(ref b)) => gen(term, a, true, b, false, &mut conj)
-    }
+    gen(term, a, b, &mut conj);
     conj
 }
 
@@ -250,7 +241,7 @@ fn solve<Node>(cs: Vec<Constraint<Node>>,
         for fact in rule.iter() {
             if core_scope_complement.contains(&fact) {
                 // ERROR
-                panic!("\n\nScope inference failed. Inferred scope:\n\n{}\n\nInvalid fact: {}",
+                panic!("\n\nScope inference failed. Inferred scope:\n\n{}\n\nScope inference failed. Invalid fact: {}",
                        surf_scope,
                        fact);
             }
@@ -354,13 +345,20 @@ mod tests {
 
     #[test]
     fn constraint_solving() {
+
         let mut lang_1: Language<Node, usize> =
-            parse_language(&SourceFile::open("src/scope_test_1.scope").unwrap());
+            parse_language(&SourceFile::open("src/example_1.scope").unwrap());
+        let mut lang_2: Language<Node, usize> =
+            parse_language(&SourceFile::open("src/example_2.scope").unwrap());
+        let mut lang_3: Language<Node, usize> =
+            parse_language(&SourceFile::open("src/pyret.scope").unwrap());
+
+        resugar_scope(&mut lang_1);
+        resugar_scope(&mut lang_2);
+        resugar_scope(&mut lang_3);
 
 
         // Example 1 from the paper (section 2.1: Single-arm Let)
-
-        resugar_scope(&mut lang_1);
 
         let ref let_rule = lang_1.surf_scope.rules["Let"];
         let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
@@ -373,13 +371,8 @@ mod tests {
         
         println!("\n{}", lang_1.surf_scope);
 
-        let mut lang_2: Language<Node, usize> =
-            parse_language(&SourceFile::open("src/scope_test_2.scope").unwrap());
-
 
         // Example 1 from the paper (section 2.1: Multi-arm Let*)
-
-        resugar_scope(&mut lang_2);
 
         let ref let_rule = lang_2.surf_scope.rules["Let"];
         let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
@@ -402,18 +395,19 @@ mod tests {
         
         println!("\n{}", lang_2.surf_scope);
 
-        let mut lang_3: Language<Node, usize> =
-            parse_language(&SourceFile::open("src/pyret.scope").unwrap());
 
 
         // Pyret language - for loop
-
-        resugar_scope(&mut lang_3);
 
         println!("\n{}", lang_3.surf_scope);
         let ref for_rule = lang_3.surf_scope.rules["For"];
         let for_facts: Vec<Fact<Node>> = for_rule.iter().collect();
         assert_eq!(for_facts.len(), 6);
+        // (For loop)
+        // child 1: iterating function
+        // child 2: binding list
+        // child 3: type annotation
+        // child 4: for loop body
         assert!(for_rule.lt(Exp, Imp));
         assert!(for_rule.lt(Child(1), Imp));
         assert!(for_rule.lt(Child(2), Imp));
@@ -424,12 +418,54 @@ mod tests {
         let ref bind_rule = lang_3.surf_scope.rules["ForBind"];
         let bind_facts: Vec<Fact<Node>> = bind_rule.iter().collect();
         assert_eq!(bind_facts.len(), 6);
+        // (For loop binding)
+        // child 1: parameter
+        // child 2: value
+        // child 3: rest of bindings
         assert!(bind_rule.lt(Exp, Imp));
         assert!(bind_rule.lt(Child(1), Imp));
         assert!(bind_rule.lt(Child(2), Imp));
         assert!(bind_rule.lt(Child(3), Imp));
         assert!(bind_rule.lt(Exp, Child(1)));
         assert!(bind_rule.lt(Exp, Child(3)));
+
+        let ref fun_rule = lang_3.surf_scope.rules["Fun"];
+        let fun_facts: Vec<Fact<Node>> = fun_rule.iter().collect();
+        assert_eq!(fun_facts.len(), 13);
+        // (Function definition)
+        // child 1: function name
+        // child 2: parameters
+        // child 3: return type annotation
+        // child 4: function body
+        // child 5: rest of program
+        assert!(fun_rule.lt(Exp, Imp));
+        assert!(fun_rule.lt(Child(1), Imp));
+        assert!(fun_rule.lt(Child(2), Imp));
+        assert!(fun_rule.lt(Child(3), Imp));
+        assert!(fun_rule.lt(Child(4), Imp));
+        assert!(fun_rule.lt(Child(5), Imp));
+        assert!(fun_rule.lt(Exp, Child(1)));
+        assert!(fun_rule.lt(Exp, Child(5)));
+        assert!(fun_rule.lt(Child(5), Child(1)));
+        assert!(fun_rule.lt(Child(2), Child(1)));
+        assert!(fun_rule.lt(Child(4), Child(2)));
+        assert!(fun_rule.lt(Child(4), Child(1)));
+        assert!(fun_rule.lt(Child(1), Child(1)));
+
+        let ref let_rule = lang_3.surf_scope.rules["Let"];
+        let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
+        assert_eq!(let_facts.len(), 6);
+        // (Let statement)
+        // child 1: name
+        // child 2: type annotation
+        // child 3: value
+        // child 4: rest of program
+        assert!(let_rule.lt(Exp, Imp));
+        assert!(let_rule.lt(Child(1), Imp));
+        assert!(let_rule.lt(Child(2), Imp));
+        assert!(let_rule.lt(Child(3), Imp));
+        assert!(let_rule.lt(Child(4), Imp));
+        assert!(let_rule.lt(Child(4), Child(1)));
     }
 
 }

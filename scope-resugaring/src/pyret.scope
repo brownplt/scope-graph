@@ -32,6 +32,7 @@ language Pyret {
     import 1;
     import 2;
     export 1;
+    export 2;
     bind 1 in 2;
   }
 
@@ -43,7 +44,23 @@ language Pyret {
     export 3;
     bind 1 in 3;
     bind 3 in 1;
-    bind 3 in 2;
+  }
+
+  LetBind 4 {
+    (* name, ann, value, binds *)
+    import 1;
+    import 2;
+    import 3;
+    import 4;
+    export 4;
+    bind 1 in 4;
+  }
+
+  LetExpr 2 {
+    (* bindings, body *)
+    import 1;
+    import 2;
+    bind 1 in 2;
   }
 
   ABlank 0 {} (* Blank annotation *)
@@ -55,35 +72,41 @@ language Pyret {
     => (DesugarFor iter binds (End) (End) ann body)
 
   rule (DesugarFor iter (End) params args ann body)
-     => (Apply iter (Arg (Lambda (RevParams params (End)) ann body) (RevArgs args (End))))
+     => (Apply iter (Arg (Lambda params ann body) args))
 
   rule (DesugarFor iter (ForBind param arg binds) params args ann body)
-    => (DesugarFor iter binds (Param param params) (Arg arg args) ann body)
+    => (DesugarFor iter binds (AppendParam param params) (AppendArg arg args) ann body)
+
+  rule (AppendParam param (End))
+    => (Param param (End))
+
+  rule (AppendParam new_param (Param param params))
+    => (Param param (AppendParam new_param params))
+
+  rule (AppendArg arg (End))
+    => (Arg arg (End))
+
+  rule (AppendArg new_arg (Arg arg args))
+    => (Arg arg (AppendArg new_arg args))
 
 
-  (* DesugarFor incidentally reverses the param and arg lists, so reverse them back *)
+  (* Functions *)
 
-  rule (RevParams (End) (End))
-    => (End)
-
-  rule (RevParams (End) (Param param params))
-    => (Param param params)
-
-  rule (RevParams (Param param params) rev_params)
-    => (RevParams params (Param param rev_params))
-
-  rule (RevArgs (End) (End))
-    => (End)
-
-  rule (RevArgs (End) (Arg arg args))
-    => (Arg arg args)
-
-  rule (RevArgs (Arg arg args) rev_args)
-    => (RevArgs args (Arg arg rev_args))
-
-  (* Fun *)
-(*
-  rule (Fun name params args ann doc body rest_stmts)
+  rule (Fun name params ann body rest_stmts)
     => (Letrec (LetrecBind name ann (Lambda params (ABlank) body) (End)) rest_stmts)
-*)
+
+
+  (* Let statements *)
+
+  rule (LetExpr binds (Let name ann value rest_stmts))
+    => (LetExpr (AppendBind name ann value binds) rest_stmts)
+
+  rule (Let name ann value rest_stmts)
+    => (LetExpr (LetBind name ann value (End)) rest_stmts)
+
+  rule (AppendBind name ann value (End))
+    => (LetBind name ann value (End))
+
+  rule (AppendBind _name _ann _value (LetBind name ann value binds))
+    => (LetBind name ann value (AppendBind _name _ann _value binds))
 }

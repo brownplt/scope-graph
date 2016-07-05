@@ -2,7 +2,6 @@ use std::fmt;
 use std::collections::HashMap;
 
 use self::Term::*;
-use self::Path::*;
 
 
 pub type Name = String;
@@ -95,7 +94,7 @@ impl<Node, Val> Term<Node, Val> {
                     if holes.contains_key(hole) {
                         panic!("Rewrite rule contains duplicate hole: {}", hole);
                     }
-                    holes.insert(hole.clone(), PathToHole(path.clone()));
+                    holes.insert(hole.clone(), path.clone());
                 }
             }
         }
@@ -105,26 +104,7 @@ impl<Node, Val> Term<Node, Val> {
     }
 }
 
-pub enum Path {
-    PathToRoot,
-    PathToHole(Vec<usize>)
-}
-
-impl Path {
-    pub fn is_empty_path(&self) -> bool {
-        match self {
-            &PathToRoot => false,
-            &PathToHole(ref path) => path.is_empty()
-        }
-    }
-
-    pub fn is_root_path(&self) -> bool {
-        match self {
-            &PathToRoot => true,
-            &PathToHole(_) => false
-        }
-    }
-}
+pub type Path = Vec<usize>;
 
 pub struct RewriteRule<Node, Val> {
     pub left: Term<Node, Val>,
@@ -156,7 +136,7 @@ impl<Node, Val> RewriteRule<Node, Val> {
                 None => {}
             }
         }
-        holes.insert(String::from(""), (PathToRoot, PathToRoot));
+        holes.insert(String::from(""), (vec!(), vec!()));
         RewriteRule{
             left: left,
             right: right,
