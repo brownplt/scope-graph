@@ -276,6 +276,7 @@ mod tests {
             .map(|c| { format!("{}", c) })
             .collect();
 
+        // Notation: ⊥ means R↓, ⊤ means R↑
         let expected_constraints = [
             "Let: ⊥ ⋖ ⊤   iff   Apply: ⊥ ⋖ ⊤",
             "Let: ⊥ ⋖ 1   iff   Apply: ⊥ ⋖ 1 & Lambda: ⊥ ⋖ 1",
@@ -369,16 +370,14 @@ mod tests {
         // (For loop)
         // child 1: iterating function
         // child 2: binding list
-        // child 3: type annotation
         // child 4: for loop body
         let ref for_rule = lang_3.surf_scope.rules["For"];
         let for_facts: Vec<Fact<Node>> = for_rule.iter().collect();
-        assert_eq!(for_facts.len(), 5);
+        assert_eq!(for_facts.len(), 4);
         assert!(has_fact(for_rule, "import 1;"));
         assert!(has_fact(for_rule, "import 2;"));
         assert!(has_fact(for_rule, "import 3;"));
-        assert!(has_fact(for_rule, "import 4;"));
-        assert!(has_fact(for_rule, "bind 2 in 4;"));
+        assert!(has_fact(for_rule, "bind 2 in 3;"));
 
         // (For loop binding)
         // child 1: parameter
@@ -396,38 +395,34 @@ mod tests {
         // (Function definition)
         // child 1: function name
         // child 2: parameters
-        // child 3: return type annotation
-        // child 4: function body
-        // child 5: rest of program
+        // child 3: function body
+        // child 4: rest of program
         let ref fun_rule = lang_3.surf_scope.rules["Fun"];
         let fun_facts: Vec<Fact<Node>> = fun_rule.iter().collect();
-        assert_eq!(fun_facts.len(), 12);
+        assert_eq!(fun_facts.len(), 11);
         assert!(has_fact(fun_rule, "import 1;"));
         assert!(has_fact(fun_rule, "import 2;"));
         assert!(has_fact(fun_rule, "import 3;"));
         assert!(has_fact(fun_rule, "import 4;"));
-        assert!(has_fact(fun_rule, "import 5;"));
         assert!(has_fact(fun_rule, "export 1;"));
-        assert!(has_fact(fun_rule, "export 5;"));
-        assert!(has_fact(fun_rule, "bind 1 in 5;"));
-        assert!(has_fact(fun_rule, "bind 1 in 2;"));
+        assert!(has_fact(fun_rule, "export 4;"));
         assert!(has_fact(fun_rule, "bind 1 in 4;"));
-        assert!(has_fact(fun_rule, "bind 2 in 4;"));
+        assert!(has_fact(fun_rule, "bind 1 in 2;"));
+        assert!(has_fact(fun_rule, "bind 1 in 3;"));
+        assert!(has_fact(fun_rule, "bind 2 in 3;"));
         assert!(has_fact(fun_rule, "bind 1 in 1;"));
 
         // (Let statement)
         // child 1: name
-        // child 2: type annotation
-        // child 3: definition
-        // child 4: rest of program
+        // child 2: definition
+        // child 3: rest of program
         let ref let_rule = lang_3.surf_scope.rules["Let"];
         let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
-        assert_eq!(let_facts.len(), 5);
+        assert_eq!(let_facts.len(), 4);
         assert!(has_fact(let_rule, "import 1;"));
         assert!(has_fact(let_rule, "import 2;"));
         assert!(has_fact(let_rule, "import 3;"));
-        assert!(has_fact(let_rule, "import 4;"));
-        assert!(has_fact(let_rule, "bind 1 in 4;"));
+        assert!(has_fact(let_rule, "bind 1 in 3;"));
     }
 
 }

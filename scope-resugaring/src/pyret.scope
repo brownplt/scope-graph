@@ -1,11 +1,10 @@
 language Pyret {
 
-  Lambda 3 {
-    (* params ann body *)
+  Lambda 2 {
+    (* params body *)
     import 1;
     import 2;
-    import 3;
-    bind 1 in 3;
+    bind 1 in 2;
   }
 
   Apply 2 {
@@ -36,24 +35,24 @@ language Pyret {
     bind 1 in 2;
   }
 
-  LetrecBind 4 {
-    (* name, ann, value, binds *)
+  LetrecBind 3 {
+    (* name, value, binds *)
     import 1;
     import 2;
     import 3;
     export 3;
     bind 1 in 3;
     bind 3 in 1;
+    bind 3 in 2;
   }
 
-  LetBind 4 {
-    (* name, ann, value, binds *)
+  LetBind 3 {
+    (* name, value, binds *)
     import 1;
     import 2;
     import 3;
-    import 4;
-    export 4;
-    bind 1 in 4;
+    export 3;
+    bind 1 in 3;
   }
 
   LetExpr 2 {
@@ -63,19 +62,17 @@ language Pyret {
     bind 1 in 2;
   }
 
-  ABlank 0 {} (* Blank annotation *)
-
 
   (* For loops *)
 
-  rule (For iter binds ann body)
-    => (DesugarFor iter binds (End) (End) ann body)
+  rule (For iter binds body)
+    => (DesugarFor iter binds (End) (End) body)
 
-  rule (DesugarFor iter (End) params args ann body)
-     => (Apply iter (Arg (Lambda params ann body) args))
+  rule (DesugarFor iter (End) params args body)
+     => (Apply iter (Arg (Lambda params body) args))
 
-  rule (DesugarFor iter (ForBind param arg binds) params args ann body)
-    => (DesugarFor iter binds (AppendParam param params) (AppendArg arg args) ann body)
+  rule (DesugarFor iter (ForBind param arg binds) params args body)
+    => (DesugarFor iter binds (AppendParam param params) (AppendArg arg args) body)
 
   rule (AppendParam param (End))
     => (Param param (End))
@@ -92,21 +89,21 @@ language Pyret {
 
   (* Functions *)
 
-  rule (Fun name params ann body rest_stmts)
-    => (Letrec (LetrecBind name ann (Lambda params (ABlank) body) (End)) rest_stmts)
+  rule (Fun name params body rest_stmts)
+    => (Letrec (LetrecBind name (Lambda params body) (End)) rest_stmts)
 
 
   (* Let statements *)
 
-  rule (LetExpr binds (Let name ann value rest_stmts))
-    => (LetExpr (AppendBind name ann value binds) rest_stmts)
+  rule (LetExpr binds (Let name value rest_stmts))
+    => (LetExpr (AppendBind name value binds) rest_stmts)
 
-  rule (Let name ann value rest_stmts)
-    => (LetExpr (LetBind name ann value (End)) rest_stmts)
+  rule (Let name value rest_stmts)
+    => (LetExpr (LetBind name value (End)) rest_stmts)
 
-  rule (AppendBind name ann value (End))
-    => (LetBind name ann value (End))
+  rule (AppendBind name value (End))
+    => (LetBind name value (End))
 
-  rule (AppendBind _name _ann _value (LetBind name ann value binds))
-    => (LetBind name ann value (AppendBind _name _ann _value binds))
+  rule (AppendBind _name _value (LetBind name value binds))
+    => (LetBind name value (AppendBind _name _value binds))
 }
