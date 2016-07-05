@@ -2,11 +2,12 @@ mod source;
 mod lexer;
 mod parser;
 
-use std::str::FromStr;
 use std::fmt;
+use std::str::FromStr;
 use std::hash::Hash;
 
 use term::{RewriteRule};
+use preorder::{Lt};
 use rule::{Language};
 use self::parser::Parser;
 
@@ -23,16 +24,12 @@ pub fn parse_rewrite_rule<'s, Node, Val>(src: &'s SourceFile) -> RewriteRule<Nod
     ans
 }
 
-/*
-pub fn parse_term<'s, Node, Val>(src: &'s SourceFile) -> Term<Node, Val>
-    where Node: FromStr, Node::Err: fmt::Debug
-{
-    Parser::from_source(src).parse_term().unwrap()
-}
-*/
-
 pub fn parse_language<'s, Node, Val>(src: &'s SourceFile) -> Language<Node, Val>
     where Node: FromStr + Clone + Eq + Hash + fmt::Display, Node::Err: fmt::Debug
 {
     Parser::from_source(src).parse_language().unwrap()
+}
+
+pub fn parse_fact<'s>(src: &'s SourceFile) -> Lt {
+    Parser::from_source(src).parse_fact().unwrap()
 }

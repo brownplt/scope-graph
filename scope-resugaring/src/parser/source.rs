@@ -92,15 +92,6 @@ impl<'a> Span<'a> {
         }
     }
 
-    pub fn sum<Iter: Iterator<Item=Span<'a>>>(mut spans: Iter) -> Span<'a> {
-        // Spans must be nonempty!
-        let mut total_span = spans.next().expect("Span::Sum: empty span list");
-        for span in spans {
-            total_span = total_span + span
-        }
-        total_span
-    }
-
     pub fn len(&self) -> usize {
         self.end - self.start
     }
@@ -108,15 +99,6 @@ impl<'a> Span<'a> {
     pub fn as_str(&self) -> &'a str {
         &self.source.text[self.start.pos .. self.end.pos]
     }
-/*
-    pub fn start(self) -> Span<'a> {
-        Span::new(self.source, self.start, self.start)
-    }
-
-    pub fn end(self) -> Span<'a> {
-        Span::new(self.source, self.end, self.end)
-    }
-*/
 }
 
 impl<'a> fmt::Display for Span<'a> {

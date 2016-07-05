@@ -49,9 +49,6 @@ pub fn gen_constrs<Node, Val>(rule: &RewriteRule<Node, Val>) -> Vec<Constraint<N
             constraints.push(Constraint::new(
                 gen_conj(&rule.left,  lpath_1, lpath_2),
                 gen_conj(&rule.right, rpath_1, rpath_2)));
-            println!("{}", Constraint::new(
-                gen_conj(&rule.left,  lpath_1, lpath_2),
-                gen_conj(&rule.right, rpath_1, rpath_2)));
         }
     }
     constraints
@@ -172,7 +169,6 @@ fn solve<Node>(cs: Vec<Constraint<Node>>,
     let mut frontier: Vec<Fact<Node>> = vec!();
     for rule in core_scope.rules.values() {
         for fact in rule.iter() {
-            println!("Solve/init: {}", fact);
             frontier.push(fact);
         }
     }
@@ -181,13 +177,11 @@ fn solve<Node>(cs: Vec<Constraint<Node>>,
     for eqn in equations.iter_mut() {
         if eqn.left.is_empty() {
             for fact in eqn.right.drain() {
-                println!("Solve/init*: {}", fact);
                 frontier.push(fact);
             }
         }
         if eqn.right.is_empty() {
             for fact in eqn.left.drain() {
-                println!("Solve/init*: {}", fact);
                 frontier.push(fact);
             }
         }
@@ -196,7 +190,6 @@ fn solve<Node>(cs: Vec<Constraint<Node>>,
     while let Some(fact) = frontier.pop() {
         // Maintain transitive closure
         for trans_closure_fact in surf_scope.insert(fact.clone()) {
-            println!("Solve/trans: {} from {}", trans_closure_fact, fact);
             frontier.push(trans_closure_fact);
         }
         // If a fact in a constraint is in Sigma_surf
@@ -212,7 +205,6 @@ fn solve<Node>(cs: Vec<Constraint<Node>>,
                             if equations[posn.index].left.is_empty() {
                                 // Add the other side to Sigma_surf
                                 for fact in equations[posn.index].right.drain() {
-                                    println!("Solve/infer: {}", fact);
                                     frontier.push(fact);
                                 }
                             }
@@ -224,7 +216,6 @@ fn solve<Node>(cs: Vec<Constraint<Node>>,
                             if equations[posn.index].right.is_empty() {
                                 // Add the other side to Sigma_surf
                                 for fact in equations[posn.index].left.drain() {
-                                    println!("Solve/infer: {}", fact);
                                     frontier.push(fact);
                                 }
                             }
@@ -265,44 +256,13 @@ pub fn resugar_scope<Node, Val>(language: &mut Language<Node, Val>)
 
 #[cfg(test)]
 mod tests {
-    use std::fmt;
-    use std::str;
-    use std::collections::HashMap;
-    use std::sync::Mutex;
     use std::time::SystemTime;
 
     use super::*;
     use term::{RewriteRule};
-    use rule::{Fact, Language};
-    use preorder::Elem::{Imp, Exp, Child};
+    use rule::{Fact, ScopeRule, Language};
     use parser::SourceFile;
-    use parser::{parse_rewrite_rule, parse_language};
-
-    use self::Node::*;
-
-    struct InternTable {
-        count: usize,
-        str_to_index: HashMap<String, usize>,
-        index_to_str: HashMap<usize, String>
-    }
-
-    impl InternTable {
-        fn intern(&mut self, s: &str) -> usize {
-            if self.str_to_index.contains_key(s) {
-                self.str_to_index[s]
-            } else {
-                let i = self.count;
-                self.count += 1;
-                self.str_to_index.insert(String::from(s), i);
-                self.index_to_str.insert(i, String::from(s));
-                i
-            }
-        }
-
-        fn lookup(&self, index: usize) -> &str {
-            &self.index_to_str[&index]
-        }
-    }
+    use parser::{parse_rewrite_rule, parse_language, parse_fact};
 
     type Node = String;
 
@@ -311,12 +271,6 @@ mod tests {
         let rule_1: RewriteRule<Node, usize> =
             parse_rewrite_rule(&SourceFile::from_str(
                 "rule (Let a b c) => (Apply (Lambda a c) b)" ));
-
-        // // To show elapsed time:
-        // let now = SystemTime::now();
-        // let actual_constraints: Vec<Constraint<Node>> = gen_constrs(&rule_1);
-        // println!("{:?}", now.elapsed());
-        // panic!();
 
         let actual_constraints: Vec<String> = gen_constrs(&rule_1).iter()
             .map(|c| { format!("{}", c) })
@@ -346,6 +300,11 @@ mod tests {
     #[test]
     fn constraint_solving() {
 
+        fn has_fact(rule: &ScopeRule<Node>, fact: &str) -> bool {
+            let fact = parse_fact(&SourceFile::from_str(fact));
+            rule.lt(fact.left, fact.right)
+        }
+
         let mut lang_1: Language<Node, usize> =
             parse_language(&SourceFile::open("src/example_1.scope").unwrap());
         let mut lang_2: Language<Node, usize> =
@@ -353,119 +312,122 @@ mod tests {
         let mut lang_3: Language<Node, usize> =
             parse_language(&SourceFile::open("src/pyret.scope").unwrap());
 
+        let now = SystemTime::now();
         resugar_scope(&mut lang_1);
         resugar_scope(&mut lang_2);
         resugar_scope(&mut lang_3);
+        println!("{:?}", now.elapsed());
+        //panic!("SHOW ELAPSED TIME");
 
 
         // Example 1 from the paper (section 2.1: Single-arm Let)
 
+        // (Let statement)
+        // child 1: name
+        // child 2: definition
+        // child 3: body
         let ref let_rule = lang_1.surf_scope.rules["Let"];
         let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
-        assert_eq!(let_facts.len(), 5);
-        assert!(let_rule.lt(Exp, Imp));
-        assert!(let_rule.lt(Child(1), Imp));
-        assert!(let_rule.lt(Child(2), Imp));
-        assert!(let_rule.lt(Child(2), Imp));
-        assert!(let_rule.lt(Child(3), Child(1)));
+        assert_eq!(let_facts.len(), 4);
+        assert!(has_fact(let_rule, "import 1;"));
+        assert!(has_fact(let_rule, "import 2;"));
+        assert!(has_fact(let_rule, "import 3;"));
+        assert!(has_fact(let_rule, "bind 1 in 3;"));
         
-        println!("\n{}", lang_1.surf_scope);
 
 
         // Example 1 from the paper (section 2.1: Multi-arm Let*)
 
+        // (Let* statement)
+        // child 1: bindings
+        // child 2: body
         let ref let_rule = lang_2.surf_scope.rules["Let"];
         let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
-        assert_eq!(let_facts.len(), 4);
-        assert!(let_rule.lt(Exp, Imp));
-        assert!(let_rule.lt(Child(1), Imp));
-        assert!(let_rule.lt(Child(2), Imp));
-        assert!(let_rule.lt(Child(2), Child(1)));
+        assert_eq!(let_facts.len(), 3);
+        assert!(has_fact(let_rule, "import 1;"));
+        assert!(has_fact(let_rule, "import 2;"));
+        assert!(has_fact(let_rule, "bind 1 in 2;"));
 
+        // (Let* binding)
+        // child 1: name
+        // child 2: definition
+        // child 3: body
         let ref bind_rule = lang_2.surf_scope.rules["Bind"];
         let bind_facts: Vec<Fact<Node>> = bind_rule.iter().collect();
-        assert_eq!(bind_facts.len(), 7);
-        assert!(bind_rule.lt(Exp, Imp));
-        assert!(bind_rule.lt(Child(1), Imp));
-        assert!(bind_rule.lt(Child(2), Imp));
-        assert!(bind_rule.lt(Child(3), Imp));
-        assert!(bind_rule.lt(Child(3), Child(1)));
-        assert!(bind_rule.lt(Exp, Child(1)));
-        assert!(bind_rule.lt(Exp, Child(3)));
-        
-        println!("\n{}", lang_2.surf_scope);
+        assert_eq!(bind_facts.len(), 6);
+        assert!(has_fact(bind_rule, "import 1;"));
+        assert!(has_fact(bind_rule, "import 2;"));
+        assert!(has_fact(bind_rule, "import 3;"));
+        assert!(has_fact(bind_rule, "bind 1 in 3;"));
+        assert!(has_fact(bind_rule, "export 1;"));
+        assert!(has_fact(bind_rule, "export 3;"));
 
 
 
         // Pyret language - for loop
 
-        println!("\n{}", lang_3.surf_scope);
-        let ref for_rule = lang_3.surf_scope.rules["For"];
-        let for_facts: Vec<Fact<Node>> = for_rule.iter().collect();
-        assert_eq!(for_facts.len(), 6);
         // (For loop)
         // child 1: iterating function
         // child 2: binding list
         // child 3: type annotation
         // child 4: for loop body
-        assert!(for_rule.lt(Exp, Imp));
-        assert!(for_rule.lt(Child(1), Imp));
-        assert!(for_rule.lt(Child(2), Imp));
-        assert!(for_rule.lt(Child(3), Imp));
-        assert!(for_rule.lt(Child(4), Imp));
-        assert!(for_rule.lt(Child(4), Child(2)));
+        let ref for_rule = lang_3.surf_scope.rules["For"];
+        let for_facts: Vec<Fact<Node>> = for_rule.iter().collect();
+        assert_eq!(for_facts.len(), 5);
+        assert!(has_fact(for_rule, "import 1;"));
+        assert!(has_fact(for_rule, "import 2;"));
+        assert!(has_fact(for_rule, "import 3;"));
+        assert!(has_fact(for_rule, "import 4;"));
+        assert!(has_fact(for_rule, "bind 2 in 4;"));
 
-        let ref bind_rule = lang_3.surf_scope.rules["ForBind"];
-        let bind_facts: Vec<Fact<Node>> = bind_rule.iter().collect();
-        assert_eq!(bind_facts.len(), 6);
         // (For loop binding)
         // child 1: parameter
         // child 2: value
         // child 3: rest of bindings
-        assert!(bind_rule.lt(Exp, Imp));
-        assert!(bind_rule.lt(Child(1), Imp));
-        assert!(bind_rule.lt(Child(2), Imp));
-        assert!(bind_rule.lt(Child(3), Imp));
-        assert!(bind_rule.lt(Exp, Child(1)));
-        assert!(bind_rule.lt(Exp, Child(3)));
+        let ref bind_rule = lang_3.surf_scope.rules["ForBind"];
+        let bind_facts: Vec<Fact<Node>> = bind_rule.iter().collect();
+        assert_eq!(bind_facts.len(), 5);
+        assert!(has_fact(bind_rule, "import 1;"));
+        assert!(has_fact(bind_rule, "import 2;"));
+        assert!(has_fact(bind_rule, "import 3;"));
+        assert!(has_fact(bind_rule, "export 1;"));
+        assert!(has_fact(bind_rule, "export 3;"));
 
-        let ref fun_rule = lang_3.surf_scope.rules["Fun"];
-        let fun_facts: Vec<Fact<Node>> = fun_rule.iter().collect();
-        assert_eq!(fun_facts.len(), 13);
         // (Function definition)
         // child 1: function name
         // child 2: parameters
         // child 3: return type annotation
         // child 4: function body
         // child 5: rest of program
-        assert!(fun_rule.lt(Exp, Imp));
-        assert!(fun_rule.lt(Child(1), Imp));
-        assert!(fun_rule.lt(Child(2), Imp));
-        assert!(fun_rule.lt(Child(3), Imp));
-        assert!(fun_rule.lt(Child(4), Imp));
-        assert!(fun_rule.lt(Child(5), Imp));
-        assert!(fun_rule.lt(Exp, Child(1)));
-        assert!(fun_rule.lt(Exp, Child(5)));
-        assert!(fun_rule.lt(Child(5), Child(1)));
-        assert!(fun_rule.lt(Child(2), Child(1)));
-        assert!(fun_rule.lt(Child(4), Child(2)));
-        assert!(fun_rule.lt(Child(4), Child(1)));
-        assert!(fun_rule.lt(Child(1), Child(1)));
+        let ref fun_rule = lang_3.surf_scope.rules["Fun"];
+        let fun_facts: Vec<Fact<Node>> = fun_rule.iter().collect();
+        assert_eq!(fun_facts.len(), 12);
+        assert!(has_fact(fun_rule, "import 1;"));
+        assert!(has_fact(fun_rule, "import 2;"));
+        assert!(has_fact(fun_rule, "import 3;"));
+        assert!(has_fact(fun_rule, "import 4;"));
+        assert!(has_fact(fun_rule, "import 5;"));
+        assert!(has_fact(fun_rule, "export 1;"));
+        assert!(has_fact(fun_rule, "export 5;"));
+        assert!(has_fact(fun_rule, "bind 1 in 5;"));
+        assert!(has_fact(fun_rule, "bind 1 in 2;"));
+        assert!(has_fact(fun_rule, "bind 1 in 4;"));
+        assert!(has_fact(fun_rule, "bind 2 in 4;"));
+        assert!(has_fact(fun_rule, "bind 1 in 1;"));
 
-        let ref let_rule = lang_3.surf_scope.rules["Let"];
-        let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
-        assert_eq!(let_facts.len(), 6);
         // (Let statement)
         // child 1: name
         // child 2: type annotation
-        // child 3: value
+        // child 3: definition
         // child 4: rest of program
-        assert!(let_rule.lt(Exp, Imp));
-        assert!(let_rule.lt(Child(1), Imp));
-        assert!(let_rule.lt(Child(2), Imp));
-        assert!(let_rule.lt(Child(3), Imp));
-        assert!(let_rule.lt(Child(4), Imp));
-        assert!(let_rule.lt(Child(4), Child(1)));
+        let ref let_rule = lang_3.surf_scope.rules["Let"];
+        let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
+        assert_eq!(let_facts.len(), 5);
+        assert!(has_fact(let_rule, "import 1;"));
+        assert!(has_fact(let_rule, "import 2;"));
+        assert!(has_fact(let_rule, "import 3;"));
+        assert!(has_fact(let_rule, "import 4;"));
+        assert!(has_fact(let_rule, "bind 1 in 4;"));
     }
 
 }

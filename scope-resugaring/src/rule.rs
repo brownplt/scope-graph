@@ -75,11 +75,8 @@ impl<Node> ScopeRule<Node> {
     }
 
     pub fn lt(&self, left: Elem, right: Elem) -> bool {
-        self.contains(Lt::new(left, right))
-    }
-
-    pub fn contains(&self, fact: Lt) -> bool {
-        self.order.contains(fact)
+        let lt = Lt::new(left, right);
+        self.order.contains(lt)
     }
 }
 

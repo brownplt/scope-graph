@@ -7,7 +7,7 @@ use parser::source::SourceFile;
 use parser::lexer::{Lexeme, Token, Lexer};
 use term::{Term, Var, RewriteRule};
 use preorder::Elem::{Child, Imp, Exp};
-use preorder::{Elem, Lt};
+use preorder::{Lt};
 use rule::{ScopeRule, Language};
 
 
@@ -190,7 +190,7 @@ impl<'s> Parser<'s> {
         Ok(Lt::new(Child(j), Child(i)))
     }
 
-    fn parse_fact(&mut self) -> Result<Lt, ()>
+    pub fn parse_fact(&mut self) -> Result<Lt, ()>
     {
         let fact = try!(Err(())
             .or_else(|_| self.parse_fact_import())

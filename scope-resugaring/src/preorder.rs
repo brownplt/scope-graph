@@ -114,22 +114,6 @@ impl IndexMut<Edge> for Preorder {
 }
 
 impl Preorder {
-    pub fn new(size: usize) -> Preorder {
-        // Initialize with the empty preorder (which has x <= x for all x)
-        let mut order = Vec::with_capacity(size);
-        for i in 0..size {
-            let mut row = Vec::with_capacity(size);
-            for j in 0..size {
-                row.push(i == j);
-            }
-            order.push(row);
-        }
-        Preorder{
-            size: size,
-            order: order
-        }
-    }
-
     // Used by rules: closed under transitivity, but not reflexivity.
     pub fn new_non_reflexive(size: usize) -> Preorder {
         let mut order = Vec::with_capacity(size);
@@ -182,7 +166,7 @@ impl Preorder {
         for x in 0..self.size {
             for y in 0..self.size {
                 let edge = (x, y);
-                if self[edge] {
+                if self[edge] && edge != (1, 0) { // Skip the always true fact (Exp < Imp).
                     pairs.push(Lt::from(edge));
                 }
             }
