@@ -1,3 +1,9 @@
+## Installation & Testing
+
+1. Install the Haskell Platform (https://www.haskell.org/platform/)
+2. Run the tests with `ghc --make Test.hs && ./Test`
+3. Experiment with Demo.hs
+
 
 ## Scope Graphs
 
