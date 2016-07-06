@@ -1,7 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
-
     use resugar::*;
     use term::{RewriteRule};
     use rule::{Fact, ScopeRule, Language};
@@ -51,34 +49,15 @@ mod tests {
         }
 
 
-        let total_time = SystemTime::now();
         let mut lang_1: Language<Node, usize> =
             parse_language(&SourceFile::open("src/example_1.scope").unwrap());
         let mut lang_2: Language<Node, usize> =
             parse_language(&SourceFile::open("src/example_2.scope").unwrap());
         let mut lang_3: Language<Node, usize> =
             parse_language(&SourceFile::open("src/pyret.scope").unwrap());
-        let resugar_time = SystemTime::now();
         resugar_scope(&mut lang_1);
         resugar_scope(&mut lang_2);
         resugar_scope(&mut lang_3);
-        
-        /* UNCOMMENT TO SHOW ELAPSED TIME */
-        //println!("\nTotal time {:?}", total_time.elapsed());
-        //println!("Resugar time {:?}", resugar_time.elapsed());
-        //panic!("SHOW ELAPSED TIME");
-        
-        /* UNCOMMENT TO SHOW RESUGARED SCOPE FOR EX 1*/
-        //println!("\n\n{}", lang_1.surf_scope);
-        //panic!("SHOW RESUGARED SCOPE");
-        
-        /* UNCOMMENT TO SHOW RESUGARED SCOPE FOR EX 2 */
-        //println!("\n\n{}", lang_2.surf_scope);
-        //panic!("SHOW RESUGARED SCOPE");
-        
-        /* UNCOMMENT TO SHOW RESUGARED SCOPE FOR PYRET */
-        //println!("\n\n{}", lang_3.surf_scope);
-        //panic!("SHOW RESUGARED SCOPE");
 
         
         // Example 1 from the paper (section 2.1: Single-arm Let)

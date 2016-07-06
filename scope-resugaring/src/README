@@ -4,26 +4,23 @@ To run, first install rust (version >= 1.9):
 
     curl -sSf https://static.rust-lang.org/rustup.sh | sh
 
-(Other installation methods are given at
- https://www.rust-lang.org/downloads.html)
+(Other installation methods are given at https://www.rust-lang.org/downloads.html)
 
 Then run the tests with:
 
     cargo test
 
-To see wallclock running time, uncomment the lines beneath:
+To see the resugared scopes, run:
 
-    /* UNCOMMENT TO SHOW ELAPSED TIME */
+    cargo run
 
-Likewise, to see a language's resugared scope, uncomment:
+The also prints out the wall-clock running time of resugaring, and of parsing+resugaring.
 
-    /* UNCOMMENT TO SHOW RESUGARED SCOPE */
-
-(These purposefully panic to cause the test to fail; otherwise the
- test's output would be suppressed.)
+(In both cases, make sure you are in the top level directory (that contains Cargo.toml and src/))
 
 
-### File overview ###
+
+### Overview ###
 
 The language definition files are called
 
@@ -31,4 +28,22 @@ The language definition files are called
     example_2.scope
     pyret.scope
 
-The test cases are given in `tests.rs`.
+Each language consists of a list of core scoping constructs, which have arities and scoping rules,
+followed by a list of desugaring rules of the form "rule Term1 => Term2".
+
+The scoping rules have a friendlier format than what is given in the paper. The meaning is as follows:
+
+    "import i"     means  "i  ⋖  R↑"
+    "export i"     means  "R↓ ⋖  i "
+    "bind i in j"  means  "j  ⋖  i "
+
+
+
+### Files ###
+
+  src/parser/*       parser & lexer
+  src/preorder.rs    Preorders
+  src/term.rs        Terms & Rewrite rules
+  src/rule.rs        Scope rules & languages (which contain scope rules & rewrite rules)
+  src/resugar.rs     Scope resugaring
+  src/tests.rs       The test cases (Let, Let*, Pyret)

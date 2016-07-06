@@ -4,7 +4,7 @@ extern crate regex;
 mod util;
 mod preorder;
 mod term;
-mod rule;
+pub mod rule;
 pub mod parser;
 pub mod resugar;
 mod tests;
