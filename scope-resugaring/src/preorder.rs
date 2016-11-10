@@ -35,8 +35,8 @@ impl From<usize> for Elem {
 impl fmt::Display for Elem {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Imp      => write!(f, "⊤"),
-            Exp      => write!(f, "⊥"),
+            Imp      => write!(f, "R↓"),
+            Exp      => write!(f, "R↑"),
             Child(i) => write!(f, "{}", i)
         }
     }
@@ -95,6 +95,7 @@ impl From<Lt> for Edge {
 
 // Invariant: Always is transitively and reflexively closed
 // Invariant: `order` always has size `size`
+#[derive(Clone)]
 pub struct Preorder {
     pub size: usize,
     order: Vec<Vec<bool>>

@@ -151,7 +151,7 @@ impl<'s> Parser<'s> {
         let n = try!(self.parse_token(Token::Num));
         Ok(usize::from_str(n.span.as_str()).unwrap())
     }
-
+    
     fn parse_child_index(&mut self) -> usize
     {
         let i = self.parse_num();
@@ -202,14 +202,29 @@ impl<'s> Parser<'s> {
         
         Ok(fact)
     }
+    
+    fn parse_header<Node>(&mut self) -> Result<(Node, Vec<String>), ()>
+        where Node: FromStr, Node::Err: fmt::Debug
+    {
+        try!(self.parse_token(Token::LParen));
+
+        let node = self.parse_node();
+        let node = self.check("Node", node);
+
+        let mut args = vec!();
+        while let Ok(arg) = self.parse_name() {
+            args.push(arg);
+        }
+        
+        let _rp = self.parse_token(Token::RParen);
+        self.check("Right paren", _rp);
+        Ok((node, args))
+    }
 
     fn parse_scope_rule<Node>(&mut self) -> Result<ScopeRule<Node>, ()>
         where Node: Clone + FromStr + fmt::Display, Node::Err: fmt::Debug
     {
-        let node = try!(self.parse_node());
-        
-        let arity = self.parse_num();
-        let arity = self.check("Arity", arity);
+        let (node, args) = try!(self.parse_header());
         
         let _lb = self.parse_token(Token::LBrace);
         self.check("Left brace", _lb);
@@ -222,7 +237,16 @@ impl<'s> Parser<'s> {
         let _rb = self.parse_token(Token::RBrace);
         self.check("Left brace", _rb);
         
-        Ok(ScopeRule::new(node, arity, facts))
+        Ok(ScopeRule::new_core(node, args, facts))
+    }
+
+    fn parse_sugar_decl<Node>(&mut self) -> Result<ScopeRule<Node>, ()>
+        where Node: Clone + FromStr + fmt::Display, Node::Err: fmt::Debug
+    {
+        try!(self.parse_token(Token::Sugar));
+        let _header = self.parse_header();
+        let (node, args) = self.check("Sugar declaration", _header);
+        Ok(ScopeRule::new_surface(node, args))
     }
 
     pub fn parse_language<Node, Val>(&mut self) -> Result<Language<Node, Val>, ()>
@@ -236,9 +260,13 @@ impl<'s> Parser<'s> {
         let _lb = self.parse_token(Token::LBrace);
         self.check("Left brace", _lb);
         
-        let mut scope = vec!();
-        while let Ok(scope_rule) = self.parse_scope_rule() {
-            scope.push(scope_rule);
+        let mut core_scope = vec!();
+        while let Ok(rule) = self.parse_scope_rule() {
+            core_scope.push(rule);
+        }
+        let mut surf_scope = vec!();
+        while let Ok(rule) = self.parse_sugar_decl() {
+            surf_scope.push(rule);
         }
         let mut rewrite = vec!();
         while let Ok(rewrite_rule) = self.parse_rewrite_rule() {
@@ -248,6 +276,6 @@ impl<'s> Parser<'s> {
         let _rb = self.parse_token(Token::RBrace);
         self.check("Left brace", _rb);
         
-        Ok(Language::new(name, scope, rewrite))
+        Ok(Language::new(name, core_scope, surf_scope, rewrite))
     }
 }

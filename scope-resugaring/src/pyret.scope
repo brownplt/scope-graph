@@ -1,33 +1,31 @@
 language Pyret {
 
-  Lambda 2 {
-    (* params body *)
+  (Lambda params body) {
     import 1;
     import 2;
     bind 1 in 2;
   }
 
-  Apply 2 {
+  (Apply func arg) {
     import 1;
     import 2;
   }
 
-  Arg 2 {
+  (Arg arg args) {
     import 1;
     import 2;
   }
 
-  End 0 {}
+  (End) {}
 
-  Param 2 {
+  (Param param params) {
     import 1;
     import 2;
     export 1;
     export 2;
   }
 
-  Letrec 2 {
-    (* binds, body *)
+  (Letrec binds body) {
     import 1;
     import 2;
     export 1;
@@ -35,8 +33,7 @@ language Pyret {
     bind 1 in 2;
   }
 
-  LetrecBind 3 {
-    (* name, value, binds *)
+  (LetrecBind name value binds) {
     import 1;
     import 2;
     import 3;
@@ -46,8 +43,7 @@ language Pyret {
     bind 3 in 2;
   }
 
-  LetBind 3 {
-    (* name, value, binds *)
+  (LetBind name value binds) {
     import 1;
     import 2;
     import 3;
@@ -55,13 +51,18 @@ language Pyret {
     bind 1 in 3;
   }
 
-  LetExpr 2 {
-    (* bindings, body *)
+  (LetExpr bindings body) {
     import 1;
     import 2;
     bind 1 in 2;
   }
 
+  (* Sugars *)
+
+  sugar (For iter binds body)
+  sugar (From param arg froms)
+  sugar (Fun name params body rest_stmts)
+  sugar (Let name value rest_stmts)  
 
   (* For loops *)
 
@@ -71,7 +72,7 @@ language Pyret {
   rule (DesugarFor iter (End) params args body)
      => (Apply iter (Arg (Lambda params body) args))
 
-  rule (DesugarFor iter (ForBind param arg binds) params args body)
+  rule (DesugarFor iter (From param arg binds) params args body)
     => (DesugarFor iter binds (AppendParam param params) (AppendArg arg args) body)
 
   rule (AppendParam param (End))

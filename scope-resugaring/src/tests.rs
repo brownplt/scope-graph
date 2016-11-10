@@ -20,21 +20,21 @@ mod tests {
 
         // Notation: ⊥ means R↓, ⊤ means R↑
         let expected_constraints = [
-            "Let: ⊥ ⋖ ⊤   iff   Apply: ⊥ ⋖ ⊤",
-            "Let: ⊥ ⋖ 1   iff   Apply: ⊥ ⋖ 1 & Lambda: ⊥ ⋖ 1",
-            "Let: ⊥ ⋖ 2   iff   Apply: ⊥ ⋖ 2",
-            "Let: ⊥ ⋖ 3   iff   Apply: ⊥ ⋖ 1 & Lambda: ⊥ ⋖ 2",
-            "Let: 1 ⋖ ⊤   iff   Apply: 1 ⋖ ⊤ & Lambda: 1 ⋖ ⊤",
+            "Let: R↑ ⋖ R↓   iff   Apply: R↑ ⋖ R↓",
+            "Let: R↑ ⋖ 1   iff   Apply: R↑ ⋖ 1 & Lambda: R↑ ⋖ 1",
+            "Let: R↑ ⋖ 2   iff   Apply: R↑ ⋖ 2",
+            "Let: R↑ ⋖ 3   iff   Apply: R↑ ⋖ 1 & Lambda: R↑ ⋖ 2",
+            "Let: 1 ⋖ R↓   iff   Apply: 1 ⋖ R↓ & Lambda: 1 ⋖ R↓",
             "Let: 1 ⋖ 1   iff   Lambda: 1 ⋖ 1",
-            "Let: 1 ⋖ 2   iff   Apply: 1 ⋖ 2 & Lambda: 1 ⋖ ⊤",
+            "Let: 1 ⋖ 2   iff   Apply: 1 ⋖ 2 & Lambda: 1 ⋖ R↓",
             "Let: 1 ⋖ 3   iff   Lambda: 1 ⋖ 2",
-            "Let: 2 ⋖ ⊤   iff   Apply: 2 ⋖ ⊤",
-            "Let: 2 ⋖ 1   iff   Apply: 2 ⋖ 1 & Lambda: ⊥ ⋖ 1",
+            "Let: 2 ⋖ R↓   iff   Apply: 2 ⋖ R↓",
+            "Let: 2 ⋖ 1   iff   Apply: 2 ⋖ 1 & Lambda: R↑ ⋖ 1",
             "Let: 2 ⋖ 2   iff   Apply: 2 ⋖ 2",
-            "Let: 2 ⋖ 3   iff   Apply: 2 ⋖ 1 & Lambda: ⊥ ⋖ 2",
-            "Let: 3 ⋖ ⊤   iff   Apply: 1 ⋖ ⊤ & Lambda: 2 ⋖ ⊤",
+            "Let: 2 ⋖ 3   iff   Apply: 2 ⋖ 1 & Lambda: R↑ ⋖ 2",
+            "Let: 3 ⋖ R↓   iff   Apply: 1 ⋖ R↓ & Lambda: 2 ⋖ R↓",
             "Let: 3 ⋖ 1   iff   Lambda: 2 ⋖ 1",
-            "Let: 3 ⋖ 2   iff   Apply: 1 ⋖ 2 & Lambda: 2 ⋖ ⊤",
+            "Let: 3 ⋖ 2   iff   Apply: 1 ⋖ 2 & Lambda: 2 ⋖ R↓",
             "Let: 3 ⋖ 3   iff   Lambda: 2 ⋖ 2"];
 
         assert_eq!(actual_constraints.as_slice(), expected_constraints);
@@ -122,7 +122,7 @@ mod tests {
         // child 1: parameter
         // child 2: value
         // child 3: rest of bindings
-        let ref bind_rule = lang_3.surf_scope.rules["ForBind"];
+        let ref bind_rule = lang_3.surf_scope.rules["From"];
         let bind_facts: Vec<Fact<Node>> = bind_rule.iter().collect();
         assert_eq!(bind_facts.len(), 5);
         assert!(has_fact(bind_rule, "import 1;"));

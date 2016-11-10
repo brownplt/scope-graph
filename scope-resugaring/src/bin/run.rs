@@ -25,11 +25,11 @@ fn main() {
     let total_time = total_timer.elapsed();
     let resugar_time = resugar_timer.elapsed();
 
-    println!("\n\n=============== Example 1 (Let) ================\n");
+    println!("\n=============== Example 1 (Let) ================\n");
     println!("{}", lang_1.surf_scope);
-    println!("\n\n=============== Example 2 (Let*) ===============\n");
+    println!("\n=============== Example 2 (Let*) ===============\n");
     println!("{}", lang_2.surf_scope);
-    println!("\n\n====================  Pyret  ===================\n");
+    println!("\n====================  Pyret  ===================\n");
     println!("{}", lang_3.surf_scope);
 
     println!("\nTotal time {:?}", total_time);

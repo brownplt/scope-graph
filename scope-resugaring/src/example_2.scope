@@ -1,18 +1,23 @@
 language Test {
-  Lambda 2 {
+  (Lambda param body) {
     import 1;
     import 2;
     bind 1 in 2;
   }
-  Apply 2 {
+  (Apply func arg) {
     import 1;
     import 2;
   }
-  Unit 1 {
+  (Begin body) {
     import 1;
   }
+  
+  sugar (Let binds body)
+  sugar (Bind name defn binds)
+  sugar (EndBinds)
+  
   rule (Let (Bind a b c) d)
     => (Apply (Lambda a (Let c d)) b)
   rule (Let (EndBinds) a)
-    => (Unit a)
+    => (Begin a)
 }
