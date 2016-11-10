@@ -108,15 +108,28 @@ impl<'s> Parser<'s> {
     fn parse_refn<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
         where Node: FromStr, Node::Err: fmt::Debug
     {
-        let lex = try!(self.parse_token(Token::Name));
+        try!(self.parse_token(Token::RefnMark));
+        let _lex = self.parse_token(Token::Name);
+        let lex = self.check("Variable name", _lex);
         Ok(Term::Refn(Var::new(&format!("{}", lex))))
     }
 
     fn parse_decl<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
         where Node: FromStr, Node::Err: fmt::Debug
     {
-        let lex = try!(self.parse_token(Token::Name));
+        try!(self.parse_token(Token::DeclMark));
+        let _lex = self.parse_token(Token::Name);
+        let lex = self.check("Variable name", _lex);
         Ok(Term::Decl(Var::new(&format!("{}", lex))))
+    }
+
+    fn parse_global<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
+        where Node: FromStr, Node::Err: fmt::Debug
+    {
+        try!(self.parse_token(Token::GlobalMark));
+        let _lex = self.parse_token(Token::Name);
+        let lex = self.check("Variable name", _lex);
+        Ok(Term::Global(Var::new(&format!("{}", lex))))
     }
 
     pub fn parse_term<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
@@ -127,6 +140,7 @@ impl<'s> Parser<'s> {
             .or_else(|_| self.parse_stx())
             .or_else(|_| self.parse_refn())
             .or_else(|_| self.parse_decl())
+            .or_else(|_| self.parse_global())
     }
 
     pub fn parse_rewrite_rule<Node, Val>(&mut self) -> Result<RewriteRule<Node, Val>, ()>

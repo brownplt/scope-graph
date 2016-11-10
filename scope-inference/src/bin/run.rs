@@ -1,11 +1,11 @@
-extern crate scope_resugaring;
+extern crate scope_inference;
 
 use std::time::SystemTime;
 
-use self::scope_resugaring::rule::Language;
-use self::scope_resugaring::parser::SourceFile;
-use self::scope_resugaring::parser::parse_language;
-use self::scope_resugaring::resugar::resugar_scope;
+use self::scope_inference::rule::Language;
+use self::scope_inference::parser::SourceFile;
+use self::scope_inference::parser::parse_language;
+use self::scope_inference::infer::infer_scope;
 
 type Node = String;
 
@@ -18,12 +18,12 @@ fn main() {
         parse_language(&SourceFile::open("src/example_2.scope").unwrap());
     let mut lang_3: Language<Node, usize> =
         parse_language(&SourceFile::open("src/pyret.scope").unwrap());
-    let resugar_timer = SystemTime::now();
-    resugar_scope(&mut lang_1);
-    resugar_scope(&mut lang_2);
-    resugar_scope(&mut lang_3);
+    let infer_timer = SystemTime::now();
+    infer_scope(&mut lang_1);
+    infer_scope(&mut lang_2);
+    infer_scope(&mut lang_3);
     let total_time = total_timer.elapsed();
-    let resugar_time = resugar_timer.elapsed();
+    let infer_time = infer_timer.elapsed();
 
     println!("\n=============== Example 1 (Let) ================\n");
     println!("{}", lang_1.surf_scope);
@@ -33,5 +33,5 @@ fn main() {
     println!("{}", lang_3.surf_scope);
 
     println!("\nTotal time {:?}", total_time);
-    println!("Resugar time {:?}", resugar_time);
+    println!("Infer time {:?}", infer_time);
 }

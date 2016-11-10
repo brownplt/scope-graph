@@ -29,6 +29,7 @@ pub enum Token {
     RParen,
     DeclMark,
     RefnMark,
+    GlobalMark,
     Num,
     Name
 }
@@ -39,7 +40,7 @@ fn make_matcher(token: Token, regex: &str) -> (Token, Regex) {
 }
 
 lazy_static! {
-    static ref MATCHERS: [(Token, Regex); 18] = [
+    static ref MATCHERS: [(Token, Regex); 19] = [
         make_matcher(Language, "language\\b"),
         make_matcher(Semicolon, ";"),
         make_matcher(LBrace  , "\\{"),
@@ -56,6 +57,7 @@ lazy_static! {
         make_matcher(Export  , "export\\b"),
         make_matcher(DeclMark, "@"),
         make_matcher(RefnMark, "$"),
+        make_matcher(GlobalMark, "global$"),
         make_matcher(Num     , "[0-9]+"),
         make_matcher(Name    , "[_a-zA-Z][a-zA-Z_0-9-]*")
         ];
@@ -81,6 +83,7 @@ impl fmt::Display for Token {
             Export   => write!(f, "export"),
             DeclMark => write!(f, "@"),
             RefnMark => write!(f, "$"),
+            GlobalMark => write!(f, "global$"),
             Num      => write!(f, "[NUM]"),
             Name     => write!(f, "[NAME]")
         }

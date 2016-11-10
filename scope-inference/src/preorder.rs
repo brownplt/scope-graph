@@ -67,7 +67,7 @@ impl fmt::Display for Lt {
         match (self.left, self.right) {
             (Child(i), Imp)      => write!(f, "import {}", i + 1),
             (Exp, Child(j))      => write!(f, "export {}", j + 1),
-            (Child(i), Child(j)) => write!(f, "jind {} in {}", j + 1, i + 1),
+            (Child(i), Child(j)) => write!(f, "bind {} in {}", j + 1, i + 1),
             (Exp, Imp)           => write!(f, "export imports"),
             (a, b)               => write!(f, "[invalid fact {} ⋖ {}]", a, b)
         }

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use resugar::*;
+    use infer::*;
     use term::{RewriteRule};
     use rule::{Fact, ScopeRule, Language};
     use parser::SourceFile;
@@ -55,9 +55,9 @@ mod tests {
             parse_language(&SourceFile::open("src/example_2.scope").unwrap());
         let mut lang_3: Language<Node, usize> =
             parse_language(&SourceFile::open("src/pyret.scope").unwrap());
-        resugar_scope(&mut lang_1);
-        resugar_scope(&mut lang_2);
-        resugar_scope(&mut lang_3);
+        infer_scope(&mut lang_1);
+        infer_scope(&mut lang_2);
+        infer_scope(&mut lang_3);
 
         
         // Example 1 from the paper (section 2.1: Single-arm Let)

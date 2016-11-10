@@ -11,8 +11,9 @@ use term::{Term, RewriteRule};
 #[derive(Clone)]
 pub struct ScopeRule<Node> {
     node: Node,
-    args: Option<Vec<String>>,
+    args: Vec<String>,
     kind: Kind,
+    implicit: bool,
     order: Preorder
 }
 
@@ -24,15 +25,8 @@ impl<Node> fmt::Display for ScopeRule<Node>
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(write!(f, "({}", self.node));
-        match self.args {
-            Some(ref args) =>
-                for arg in args.iter() {
-                    try!(write!(f, " {}", arg));
-                },
-            None =>
-                for _ in 0..self.arity() {
-                    try!(write!(f, " _"));
-                }
+        for arg in self.args.iter() {
+            try!(write!(f, " {}", arg));
         }
         try!(write!(f, ") {{\n"));
         for fact in self.iter() {
@@ -46,31 +40,32 @@ impl<Node> ScopeRule<Node> {
     pub fn new_core(node: Node, args: Vec<String>, facts: Vec<Lt>) -> ScopeRule<Node>
         where Node: Clone
     {
-        ScopeRule::make(node, Ok(args), facts, Kind::Core)
+        ScopeRule::make(node, args, facts, Kind::Core, false)
     }
 
     pub fn new_surface(node: Node, args: Vec<String>) -> ScopeRule<Node>
         where Node: Clone
     {
-        ScopeRule::make(node, Ok(args), vec!(), Kind::Surface)
+        ScopeRule::make(node, args, vec!(), Kind::Surface, false)
     }
 
     fn new_implicit(node: Node, arity: usize) -> ScopeRule<Node>
         where Node: Clone
     {
-        ScopeRule::make(node, Err(arity), vec!(), Kind::Surface)
+        let mut args = vec!();
+        for i in 1 .. arity + 1 {
+            args.push(format!("{}", i));
+        }
+        ScopeRule::make(node, args, vec!(), Kind::Surface, true)
     }
     
-    fn make(node: Node, args: Result<Vec<String>, usize>, facts: Vec<Lt>, kind: Kind)
+    fn make(node: Node, args: Vec<String>, facts: Vec<Lt>, kind: Kind, implicit: bool)
             -> ScopeRule<Node>
         where Node: Clone
     {
-        let arity = match args {
-            Err(arity) => arity,
-            Ok(ref args) => args.len()
-        };
+        let arity = args.len();
         // Scope Rule Axiom 1/4 (transitivity): guaranteed by Preorder.
-        let mut order = Preorder::new_non_reflexive(arity + 2);
+        let mut order = Preorder::new_non_reflexive(arity);
         for fact in facts.into_iter() {
             // Scope Rule Axiom 2/4
             if fact.right == Exp {
@@ -96,9 +91,10 @@ impl<Node> ScopeRule<Node> {
         order.insert(Lt::new(Exp, Imp));
         ScopeRule{
             node: node,
-            args: args.ok(),
+            args: args,
             order: order,
-            kind: kind
+            kind: kind,
+            implicit: implicit
         }
     }
 
@@ -122,7 +118,7 @@ impl<Node> ScopeRule<Node> {
     }
 
     pub fn implicit(&self) -> bool {
-        self.args.is_none()
+        self.implicit
     }
 }
 
@@ -141,6 +137,8 @@ impl<Node> Iterator for Iter<Node> where Node: Clone {
     }
 }
 
+// Section 4.4
+// (left, right) in Sigma[Node]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Fact<Node> {
     node: Node,

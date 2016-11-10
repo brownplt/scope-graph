@@ -8,6 +8,7 @@ use preorder::Elem::{Imp, Exp, Child};
 use rule::{Fact, ScopeRules, Language};
 use term::{RewriteRule, Term};
 use term::Term::*;
+//use scope::{calc_preorder, calc_bindings};
 
 
 
@@ -108,9 +109,9 @@ fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj
 }
 
 
-fn solve<Node>(cs: Vec<Constraint<Node>>,
-               core_scope: &ScopeRules<Node>,
-               surf_scope: &mut ScopeRules<Node>)
+fn solve<Node>(core_scope: &ScopeRules<Node>,
+               surf_scope: &mut ScopeRules<Node>,
+               cs: Vec<Constraint<Node>>)
     where Node: PartialEq + Clone + Eq + Hash + fmt::Display
 {
 
@@ -240,7 +241,29 @@ fn solve<Node>(cs: Vec<Constraint<Node>>,
     }
 }
 
-pub fn resugar_scope<Node, Val>(language: &mut Language<Node, Val>)
+/*
+fn check_scope<Node, Val>(scope: &ScopeRules<Node>,
+                          rules: &Vec<RewriteRule<Node, Val>>)
+    where Node: Clone + fmt::Display + Eq + Hash, Val: fmt::Display
+{
+    for rule in rules.iter() {
+        let lhs_order = calc_preorder(rule.lhs);
+        let rhs_order = calc_preorder(rule.rhs);
+        let rhs_holes: HashSet<Name> = rule.rhs.holes()
+            .map(|(name, _)| name)
+            .collect();
+        for lt in lhs_order.facts() {
+            if rhs_holes.contains(lt.left) && !rhs_order.contains(lt) {
+                panic!("Variables in {} and bound by {} may become unbound, in the rule:\n{}",
+                       lt.left, lt.right, rule);
+            }
+        }
+        
+    }
+}
+*/
+
+pub fn infer_scope<Node, Val>(language: &mut Language<Node, Val>)
     where Node: Clone + fmt::Display + Eq + Hash, Val: fmt::Display
 {
     let mut constraints = vec!();
@@ -249,5 +272,8 @@ pub fn resugar_scope<Node, Val>(language: &mut Language<Node, Val>)
             constraints.push(constraint.clone());
         }
     }
-    solve(constraints, &language.core_scope, &mut language.surf_scope)
+    let surf = solve(&language.core_scope, &mut language.surf_scope, constraints);
+//    check_scope(surf, &language.rewrite_rules)
+    surf
 }
+

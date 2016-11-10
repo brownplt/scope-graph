@@ -29,6 +29,7 @@ impl Var {
 pub enum Term<Node, Val> {
     Decl(Var),
     Refn(Var),
+    Global(Var),
     Value(Val),
     Stx(Node, Vec<Term<Node, Val>>),
     Hole(Name)
@@ -41,6 +42,7 @@ impl<Node, Val> fmt::Display for Term<Node, Val>
         match self {
             &Decl(ref var) => var.fmt(f),
             &Refn(ref var) => var.fmt(f),
+            &Global(ref var) => var.fmt(f),
             &Value(ref val) => val.fmt(f),
             &Stx(ref node, ref subterms) => {
                 try!(write!(f, "("));
@@ -82,6 +84,7 @@ impl<Node, Val> Term<Node, Val> {
             match term {
                 &Decl(_)  => (),
                 &Refn(_)  => (),
+                &Global(_)=> (),
                 &Value(_) => (),
                 &Stx(_, ref subterms) => {
                     for (i, subterm) in subterms.iter().enumerate() {
