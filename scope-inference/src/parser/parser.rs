@@ -1,11 +1,9 @@
 use std::iter::Peekable;
 use std::str::FromStr;
-use std::fmt;
-use std::hash::Hash;
 
 use parser::source::SourceFile;
 use parser::lexer::{Lexeme, Token, Lexer};
-use term::{Term, Var, RewriteRule};
+use term::{Node, Term, Var, RewriteRule};
 use preorder::Elem::{Child, Imp, Exp};
 use preorder::{Lt};
 use rule::{ScopeRule, Language};
@@ -72,16 +70,14 @@ impl<'s> Parser<'s> {
         }
     }
 
-    fn parse_hole<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()> {
+    fn parse_hole<Val>(&mut self) -> Result<Term<Val>, ()> {
         let lex = try!(self.parse_token(Token::Name));
         Ok(Term::Hole(format!("{}", lex.span)))
     }
 
-    fn parse_node<Node>(&mut self) -> Result<Node, ()>
-        where Node: FromStr, Node::Err: fmt::Debug
-    {
+    fn parse_node(&mut self) -> Result<Node, ()> {
         let node = try!(self.parse_token(Token::Name));
-        Ok(Node::from_str(&format!("{}", node)).unwrap())
+        Ok(format!("{}", node))
     }
 
     fn parse_name(&mut self) -> Result<String, ()>
@@ -90,9 +86,7 @@ impl<'s> Parser<'s> {
         Ok(String::from(name.span.as_str()))
     }
 
-    fn parse_stx<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
-        where Node: FromStr, Node::Err: fmt::Debug
-    {
+    fn parse_stx<Val>(&mut self) -> Result<Term<Val>, ()> {
         try!(self.parse_token(Token::LParen));
         let node = self.parse_node();
         let node = self.check("Node", node);
@@ -105,36 +99,28 @@ impl<'s> Parser<'s> {
         Ok(Term::Stx(node, subterms))
     }
 
-    fn parse_refn<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
-        where Node: FromStr, Node::Err: fmt::Debug
-    {
+    fn parse_refn<Val>(&mut self) -> Result<Term<Val>, ()> {
         try!(self.parse_token(Token::RefnMark));
         let _lex = self.parse_token(Token::Name);
         let lex = self.check("Variable name", _lex);
         Ok(Term::Refn(Var::new(&format!("{}", lex))))
     }
 
-    fn parse_decl<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
-        where Node: FromStr, Node::Err: fmt::Debug
-    {
+    fn parse_decl<Val>(&mut self) -> Result<Term<Val>, ()> {
         try!(self.parse_token(Token::DeclMark));
         let _lex = self.parse_token(Token::Name);
         let lex = self.check("Variable name", _lex);
         Ok(Term::Decl(Var::new(&format!("{}", lex))))
     }
 
-    fn parse_global<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
-        where Node: FromStr, Node::Err: fmt::Debug
-    {
+    fn parse_global<Val>(&mut self) -> Result<Term<Val>, ()> {
         try!(self.parse_token(Token::GlobalMark));
         let _lex = self.parse_token(Token::Name);
         let lex = self.check("Variable name", _lex);
         Ok(Term::Global(Var::new(&format!("{}", lex))))
     }
 
-    pub fn parse_term<Node, Val>(&mut self) -> Result<Term<Node, Val>, ()>
-        where Node: FromStr, Node::Err: fmt::Debug
-    {
+    pub fn parse_term<Val>(&mut self) -> Result<Term<Val>, ()> {
         Err(())
             .or_else(|_| self.parse_hole())
             .or_else(|_| self.parse_stx())
@@ -143,9 +129,7 @@ impl<'s> Parser<'s> {
             .or_else(|_| self.parse_global())
     }
 
-    pub fn parse_rewrite_rule<Node, Val>(&mut self) -> Result<RewriteRule<Node, Val>, ()>
-        where Node: FromStr, Node::Err: fmt::Debug
-    {
+    pub fn parse_rewrite_rule<Val>(&mut self) -> Result<RewriteRule<Val>, ()> {
         try!(self.parse_token(Token::Rule));
         
         let lhs = self.parse_term();
@@ -217,9 +201,7 @@ impl<'s> Parser<'s> {
         Ok(fact)
     }
     
-    fn parse_header<Node>(&mut self) -> Result<(Node, Vec<String>), ()>
-        where Node: FromStr, Node::Err: fmt::Debug
-    {
+    fn parse_header(&mut self) -> Result<(Node, Vec<String>), ()> {
         try!(self.parse_token(Token::LParen));
 
         let node = self.parse_node();
@@ -235,9 +217,7 @@ impl<'s> Parser<'s> {
         Ok((node, args))
     }
 
-    fn parse_scope_rule<Node>(&mut self) -> Result<ScopeRule<Node>, ()>
-        where Node: Clone + FromStr + fmt::Display, Node::Err: fmt::Debug
-    {
+    fn parse_scope_rule(&mut self) -> Result<ScopeRule, ()> {
         let (node, args) = try!(self.parse_header());
         
         let _lb = self.parse_token(Token::LBrace);
@@ -254,18 +234,14 @@ impl<'s> Parser<'s> {
         Ok(ScopeRule::new_core(node, args, facts))
     }
 
-    fn parse_sugar_decl<Node>(&mut self) -> Result<ScopeRule<Node>, ()>
-        where Node: Clone + FromStr + fmt::Display, Node::Err: fmt::Debug
-    {
+    fn parse_sugar_decl(&mut self) -> Result<ScopeRule, ()> {
         try!(self.parse_token(Token::Sugar));
         let _header = self.parse_header();
         let (node, args) = self.check("Sugar declaration", _header);
         Ok(ScopeRule::new_surface(node, args))
     }
 
-    pub fn parse_language<Node, Val>(&mut self) -> Result<Language<Node, Val>, ()>
-        where Node: Clone + FromStr + Eq + Hash + fmt::Display, Node::Err: fmt::Debug
-    {
+    pub fn parse_language<Val>(&mut self) -> Result<Language<Val>, ()> {
         try!(self.parse_token(Token::Language));
         
         let name = self.parse_name();

@@ -6,11 +6,9 @@ mod tests {
     use parser::SourceFile;
     use parser::{parse_rewrite_rule, parse_language, parse_fact};
 
-    type Node = String;
-
     #[test]
     fn constraint_generation() {
-        let rule_1: RewriteRule<Node, usize> =
+        let rule_1: RewriteRule<usize> =
             parse_rewrite_rule(&SourceFile::from_str(
                 "rule (Let a b c) => (Apply (Lambda a c) b)" ));
 
@@ -43,17 +41,17 @@ mod tests {
     #[test]
     fn constraint_solving() {
 
-        fn has_fact(rule: &ScopeRule<Node>, fact: &str) -> bool {
+        fn has_fact(rule: &ScopeRule, fact: &str) -> bool {
             let fact = parse_fact(&SourceFile::from_str(fact));
             rule.lt(fact.left, fact.right)
         }
 
 
-        let mut lang_1: Language<Node, usize> =
+        let mut lang_1: Language<usize> =
             parse_language(&SourceFile::open("src/example_1.scope").unwrap());
-        let mut lang_2: Language<Node, usize> =
+        let mut lang_2: Language<usize> =
             parse_language(&SourceFile::open("src/example_2.scope").unwrap());
-        let mut lang_3: Language<Node, usize> =
+        let mut lang_3: Language<usize> =
             parse_language(&SourceFile::open("src/pyret.scope").unwrap());
         infer_scope(&mut lang_1);
         infer_scope(&mut lang_2);
@@ -67,7 +65,7 @@ mod tests {
         // child 2: definition
         // child 3: body
         let ref let_rule = lang_1.surf_scope.rules["Let"];
-        let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
+        let let_facts: Vec<Fact> = let_rule.iter().collect();
         assert_eq!(let_facts.len(), 4);
         assert!(has_fact(let_rule, "import 1;"));
         assert!(has_fact(let_rule, "import 2;"));
@@ -82,7 +80,7 @@ mod tests {
         // child 1: bindings
         // child 2: body
         let ref let_rule = lang_2.surf_scope.rules["Let"];
-        let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
+        let let_facts: Vec<Fact> = let_rule.iter().collect();
         assert_eq!(let_facts.len(), 3);
         assert!(has_fact(let_rule, "import 1;"));
         assert!(has_fact(let_rule, "import 2;"));
@@ -93,7 +91,7 @@ mod tests {
         // child 2: definition
         // child 3: body
         let ref bind_rule = lang_2.surf_scope.rules["Bind"];
-        let bind_facts: Vec<Fact<Node>> = bind_rule.iter().collect();
+        let bind_facts: Vec<Fact> = bind_rule.iter().collect();
         assert_eq!(bind_facts.len(), 6);
         assert!(has_fact(bind_rule, "import 1;"));
         assert!(has_fact(bind_rule, "import 2;"));
@@ -111,7 +109,7 @@ mod tests {
         // child 2: binding list
         // child 4: for loop body
         let ref for_rule = lang_3.surf_scope.rules["For"];
-        let for_facts: Vec<Fact<Node>> = for_rule.iter().collect();
+        let for_facts: Vec<Fact> = for_rule.iter().collect();
         assert_eq!(for_facts.len(), 4);
         assert!(has_fact(for_rule, "import 1;"));
         assert!(has_fact(for_rule, "import 2;"));
@@ -123,7 +121,7 @@ mod tests {
         // child 2: value
         // child 3: rest of bindings
         let ref bind_rule = lang_3.surf_scope.rules["From"];
-        let bind_facts: Vec<Fact<Node>> = bind_rule.iter().collect();
+        let bind_facts: Vec<Fact> = bind_rule.iter().collect();
         assert_eq!(bind_facts.len(), 5);
         assert!(has_fact(bind_rule, "import 1;"));
         assert!(has_fact(bind_rule, "import 2;"));
@@ -137,7 +135,7 @@ mod tests {
         // child 3: function body
         // child 4: rest of program
         let ref fun_rule = lang_3.surf_scope.rules["Fun"];
-        let fun_facts: Vec<Fact<Node>> = fun_rule.iter().collect();
+        let fun_facts: Vec<Fact> = fun_rule.iter().collect();
         assert_eq!(fun_facts.len(), 11);
         assert!(has_fact(fun_rule, "import 1;"));
         assert!(has_fact(fun_rule, "import 2;"));
@@ -156,7 +154,7 @@ mod tests {
         // child 2: definition
         // child 3: rest of program
         let ref let_rule = lang_3.surf_scope.rules["Let"];
-        let let_facts: Vec<Fact<Node>> = let_rule.iter().collect();
+        let let_facts: Vec<Fact> = let_rule.iter().collect();
         assert_eq!(let_facts.len(), 4);
         assert!(has_fact(let_rule, "import 1;"));
         assert!(has_fact(let_rule, "import 2;"));

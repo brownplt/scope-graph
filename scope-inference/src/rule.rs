@@ -1,15 +1,17 @@
 use std::fmt;
 use std::collections::{HashSet, HashMap};
-use std::hash::Hash;
+use std::ops::Index;
 
 use preorder::{Elem, Lt, Preorder};
 use preorder::Elem::{Imp, Exp, Child};
 use term::{Term, RewriteRule};
 
+pub use term::Node;
+
 
 // Section 4.4
 #[derive(Clone)]
-pub struct ScopeRule<Node> {
+pub struct ScopeRule {
     node: Node,
     args: Vec<String>,
     kind: Kind,
@@ -20,9 +22,7 @@ pub struct ScopeRule<Node> {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Kind { Core, Surface }
 
-impl<Node> fmt::Display for ScopeRule<Node>
-    where Node: fmt::Display + Clone 
-{
+impl fmt::Display for ScopeRule {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(write!(f, "({}", self.node));
         for arg in self.args.iter() {
@@ -36,21 +36,18 @@ impl<Node> fmt::Display for ScopeRule<Node>
     }
 }
 
-impl<Node> ScopeRule<Node> {
-    pub fn new_core(node: Node, args: Vec<String>, facts: Vec<Lt>) -> ScopeRule<Node>
-        where Node: Clone
+impl ScopeRule {
+    pub fn new_core(node: Node, args: Vec<String>, facts: Vec<Lt>) -> ScopeRule
     {
         ScopeRule::make(node, args, facts, Kind::Core, false)
     }
 
-    pub fn new_surface(node: Node, args: Vec<String>) -> ScopeRule<Node>
-        where Node: Clone
+    pub fn new_surface(node: Node, args: Vec<String>) -> ScopeRule
     {
         ScopeRule::make(node, args, vec!(), Kind::Surface, false)
     }
 
-    fn new_implicit(node: Node, arity: usize) -> ScopeRule<Node>
-        where Node: Clone
+    fn new_implicit(node: Node, arity: usize) -> ScopeRule
     {
         let mut args = vec!();
         for i in 1 .. arity + 1 {
@@ -60,12 +57,11 @@ impl<Node> ScopeRule<Node> {
     }
     
     fn make(node: Node, args: Vec<String>, facts: Vec<Lt>, kind: Kind, implicit: bool)
-            -> ScopeRule<Node>
-        where Node: Clone
+            -> ScopeRule
     {
         let arity = args.len();
         // Scope Rule Axiom 1/4 (transitivity): guaranteed by Preorder.
-        let mut order = Preorder::new_non_reflexive(arity);
+        let mut order = Preorder::new_non_reflexive(arity + 2);
         for fact in facts.into_iter() {
             // Scope Rule Axiom 2/4
             if fact.right == Exp {
@@ -98,9 +94,7 @@ impl<Node> ScopeRule<Node> {
         }
     }
 
-    pub fn iter(&self) -> Iter<Node>
-        where Node: Clone
-    {
+    pub fn iter(&self) -> Iter {
         let pairs = self.order.facts();
         Iter{
             node: self.node.clone(),
@@ -122,14 +116,14 @@ impl<Node> ScopeRule<Node> {
     }
 }
 
-pub struct Iter<Node> {
+pub struct Iter {
     node: Node,
     pairs: Vec<Lt>
 }
 
-impl<Node> Iterator for Iter<Node> where Node: Clone {
-    type Item = Fact<Node>;
-    fn next(&mut self) -> Option<Fact<Node>> {
+impl Iterator for Iter {
+    type Item = Fact;
+    fn next(&mut self) -> Option<Fact> {
         match self.pairs.pop() {
             None => None,
             Some(lt) => Some(Fact::new(self.node.clone(), lt.left, lt.right))
@@ -140,22 +134,20 @@ impl<Node> Iterator for Iter<Node> where Node: Clone {
 // Section 4.4
 // (left, right) in Sigma[Node]
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct Fact<Node> {
-    node: Node,
-    left: Elem,
-    right: Elem
+pub struct Fact {
+    pub node: Node,
+    pub left: Elem,
+    pub right: Elem
 }
 
-impl<Node> fmt::Display for Fact<Node>
-    where Node: fmt::Display
-{
+impl fmt::Display for Fact {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}: {} ⋖ {}", self.node, self.left, self.right)
     }
 }
 
-impl<Node> Fact<Node> {
-    pub fn new(node: Node, left: Elem, right: Elem) -> Fact<Node> {
+impl Fact {
+    pub fn new(node: Node, left: Elem, right: Elem) -> Fact {
         Fact{
             node: node,
             left: left,
@@ -164,14 +156,12 @@ impl<Node> Fact<Node> {
     }
 }
 
-pub struct ScopeRules<Node> {
-    pub rules: HashMap<Node, ScopeRule<Node>>,
+pub struct ScopeRules {
+    pub rules: HashMap<Node, ScopeRule>,
     kind: Kind
 }
 
-impl<Node> fmt::Display for ScopeRules<Node>
-    where Node: fmt::Display + Clone + Eq + Hash
-{
+impl fmt::Display for ScopeRules {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for rule in self.rules.values() {
             if rule.kind == self.kind && !rule.implicit() {
@@ -182,10 +172,8 @@ impl<Node> fmt::Display for ScopeRules<Node>
     }
 }
 
-impl<Node> ScopeRules<Node> {
-    fn new(rules: Vec<ScopeRule<Node>>, kind: Kind) -> ScopeRules<Node>
-        where Node: Eq + Hash + Clone
-    {
+impl ScopeRules {
+    fn new(rules: Vec<ScopeRule>, kind: Kind) -> ScopeRules {
         let mut map = HashMap::new();
         for rule in rules.into_iter() {
             map.insert(rule.node.clone(), rule);
@@ -196,9 +184,7 @@ impl<Node> ScopeRules<Node> {
         }
     }
 
-    pub fn insert(&mut self, fact: Fact<Node>) -> Vec<Fact<Node>>
-        where Node: Clone + Eq + Hash + fmt::Display
-    {
+    pub fn insert(&mut self, fact: Fact) -> Vec<Fact> {
         let lt = Lt::new(fact.left, fact.right);
         let ref mut rule = match self.rules.get_mut(&fact.node) {
             None => panic!("Declaration for {} not found", &fact.node),
@@ -209,9 +195,7 @@ impl<Node> ScopeRules<Node> {
         }).collect()
     }
 
-    pub fn complement(&self) -> HashSet<Fact<Node>>
-        where Node: Clone + Eq + Hash
-    {
+    pub fn complement(&self) -> HashSet<Fact> {
         let mut complement = HashSet::new();
         for rule in self.rules.values() {
             for lt in rule.order.complement().into_iter() {
@@ -222,27 +206,33 @@ impl<Node> ScopeRules<Node> {
     }
 }
 
-
-
-pub struct Language<Node, Val> {
-    pub name: String,
-    pub core_scope: ScopeRules<Node>,
-    pub surf_scope: ScopeRules<Node>,
-    pub rewrite_rules: Vec<RewriteRule<Node, Val>>
+impl<'a> Index<&'a str> for ScopeRules {
+    type Output = ScopeRule;
+    fn index(&self, index: &'a str) -> &ScopeRule {
+        match self.rules.get(index) {
+            Some(rule) => rule,
+            None => panic!("Internal error: Failed to find node {}", index)
+        }
+    }
 }
 
-impl<Node, Val> Language<Node, Val> {
+
+
+pub struct Language<Val> {
+    pub name: String,
+    pub core_scope: ScopeRules,
+    pub surf_scope: ScopeRules,
+    pub rewrite_rules: Vec<RewriteRule<Val>>
+}
+
+impl<Val> Language<Val> {
     pub fn new(name: String,
-               core_scope: Vec<ScopeRule<Node>>,
-               mut surf_scope: Vec<ScopeRule<Node>>,
-               rewrite_rules: Vec<RewriteRule<Node, Val>>)
-               -> Language<Node, Val>
-        where Node: Clone + Eq + Hash + fmt::Display + 
+               core_scope: Vec<ScopeRule>,
+               mut surf_scope: Vec<ScopeRule>,
+               rewrite_rules: Vec<RewriteRule<Val>>)
+               -> Language<Val>
     {
-        fn gather_arities<Node, Val>(term: &Term<Node, Val>,
-                                     surf_scope: &mut Vec<ScopeRule<Node>>)
-            where Node: Clone + fmt::Display + Eq
-        {
+        fn gather_arities<Val>(term: &Term<Val>, surf_scope: &mut Vec<ScopeRule>) {
             match term {
                 &Term::Stx(ref node, ref subterms) => {
                     let mut exists = false;

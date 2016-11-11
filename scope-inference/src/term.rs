@@ -5,7 +5,9 @@ use self::Term::*;
 
 
 pub type Name = String;
+pub type Node = String;
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Var {
     pub name: Name,
 }
@@ -26,18 +28,16 @@ impl Var {
 }
 
 
-pub enum Term<Node, Val> {
+pub enum Term<Val> {
     Decl(Var),
     Refn(Var),
     Global(Var),
     Value(Val),
-    Stx(Node, Vec<Term<Node, Val>>),
+    Stx(Node, Vec<Term<Val>>),
     Hole(Name)
 }
 
-impl<Node, Val> fmt::Display for Term<Node, Val>
-    where Node: fmt::Display, Val: fmt::Display
-{
+impl<Val> fmt::Display for Term<Val> where Val : fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Decl(ref var) => var.fmt(f),
@@ -57,10 +57,8 @@ impl<Node, Val> fmt::Display for Term<Node, Val>
     }
 }
 
-impl<Node, Val> Term<Node, Val> {
-    pub fn child(&self, i: usize) -> &Term<Node, Val>
-        where Node: fmt::Display, Val: fmt::Display
-    {
+impl<Val> Term<Val> {
+    pub fn child(&self, i: usize) -> &Term<Val> where Val : fmt::Display {
         match self {
             &Stx(_, ref subterms) => {
                 match subterms.get(i - 1) {
@@ -80,7 +78,7 @@ impl<Node, Val> Term<Node, Val> {
     }
 
     fn holes(&self) -> HashMap<Name, Path> {
-        fn recur<Node, Val>(term: &Term<Node, Val>, path: &mut Vec<usize>, holes: &mut HashMap<Name, Path>) {
+        fn recur<Val>(term: &Term<Val>, path: &mut Vec<usize>, holes: &mut HashMap<Name, Path>) {
             match term {
                 &Decl(_)  => (),
                 &Refn(_)  => (),
@@ -109,14 +107,14 @@ impl<Node, Val> Term<Node, Val> {
 
 pub type Path = Vec<usize>;
 
-pub struct RewriteRule<Node, Val> {
-    pub left: Term<Node, Val>,
-    pub right: Term<Node, Val>,
+pub struct RewriteRule<Val> {
+    pub left: Term<Val>,
+    pub right: Term<Val>,
     pub holes: HashMap<Name, (Path, Path)>
 }
 
-impl<Node, Val> RewriteRule<Node, Val> {
-    pub fn new(left: Term<Node, Val>, right: Term<Node, Val>) -> RewriteRule<Node, Val> {
+impl<Val> RewriteRule<Val> {
+    pub fn new(left: Term<Val>, right: Term<Val>) -> RewriteRule<Val> {
         if left.is_hole() {
             panic!("The LHS of a rewrite rule cannot be just a hole.");
         }

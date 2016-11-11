@@ -7,16 +7,14 @@ use self::scope_inference::parser::SourceFile;
 use self::scope_inference::parser::parse_language;
 use self::scope_inference::infer::infer_scope;
 
-type Node = String;
-
 
 fn main() {
     let total_timer = SystemTime::now();
-    let mut lang_1: Language<Node, usize> =
+    let mut lang_1: Language<usize> =
         parse_language(&SourceFile::open("src/example_1.scope").unwrap());
-    let mut lang_2: Language<Node, usize> =
+    let mut lang_2: Language<usize> =
         parse_language(&SourceFile::open("src/example_2.scope").unwrap());
-    let mut lang_3: Language<Node, usize> =
+    let mut lang_3: Language<usize> =
         parse_language(&SourceFile::open("src/pyret.scope").unwrap());
     let infer_timer = SystemTime::now();
     infer_scope(&mut lang_1);

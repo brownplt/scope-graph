@@ -1,7 +1,6 @@
 use std::fmt;
 use std::collections::HashSet;
 use std::collections::HashMap;
-use std::hash::Hash;
 
 use util::display_sep;
 use preorder::Elem::{Imp, Exp, Child};
@@ -12,16 +11,16 @@ use term::Term::*;
 
 
 
-type Conj<Node> = Vec<Fact<Node>>;
+type Conj = Vec<Fact>;
 
 #[derive(Clone)]
-pub struct Constraint<Node> {
-    left: Conj<Node>,
-    right: Conj<Node>
+pub struct Constraint {
+    left: Conj,
+    right: Conj
 }
 
-impl<Node> Constraint<Node> {
-    fn new(left: Conj<Node>, right: Conj<Node>) -> Constraint<Node> {
+impl Constraint {
+    fn new(left: Conj, right: Conj) -> Constraint {
         Constraint{
             left: left,
             right: right
@@ -29,7 +28,7 @@ impl<Node> Constraint<Node> {
     }
 }
 
-impl<Node> fmt::Display for Constraint<Node> where Node: fmt::Display {
+impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(display_sep(f, " & ", self.left.iter()));
         try!(write!(f, "   iff   "));
@@ -37,8 +36,8 @@ impl<Node> fmt::Display for Constraint<Node> where Node: fmt::Display {
     }
 }
 
-pub fn gen_constrs<Node, Val>(rule: &RewriteRule<Node, Val>) -> Vec<Constraint<Node>>
-    where Node: Clone + fmt::Display, Val: fmt::Display
+pub fn gen_constrs<Val>(rule: &RewriteRule<Val>) -> Vec<Constraint>
+    where Val : fmt::Display
 {
     let mut constraints = vec!();
     let mut holes: Vec<&String> = rule.holes.keys().collect();
@@ -55,12 +54,12 @@ pub fn gen_constrs<Node, Val>(rule: &RewriteRule<Node, Val>) -> Vec<Constraint<N
     constraints
 }
 
-fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj<Node>
-    where Node: Clone + fmt::Display, Val: fmt::Display
+fn gen_conj<Val>(term: &Term<Val>, a: &[usize], b: &[usize]) -> Conj
+    where Val : fmt::Display
 {
     // true: downarrow, false: uparrow
-    fn gen<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize], conj: &mut Vec<Fact<Node>>)
-        where Node: Clone + fmt::Display, Val: fmt::Display
+    fn gen<Val>(term: &Term<Val>, a: &[usize], b: &[usize], conj: &mut Vec<Fact>)
+        where Val : fmt::Display
     {
         match term {
             &Stx(ref node, _) => {
@@ -109,11 +108,9 @@ fn gen_conj<Node, Val>(term: &Term<Node, Val>, a: &[usize], b: &[usize]) -> Conj
 }
 
 
-fn solve<Node>(core_scope: &ScopeRules<Node>,
-               surf_scope: &mut ScopeRules<Node>,
-               cs: Vec<Constraint<Node>>)
-    where Node: PartialEq + Clone + Eq + Hash + fmt::Display
-{
+fn solve(core_scope: &ScopeRules,
+               surf_scope: &mut ScopeRules,
+               cs: Vec<Constraint>) {
 
     #[derive(Debug)]
     struct FactPosn {
@@ -125,17 +122,17 @@ fn solve<Node>(core_scope: &ScopeRules<Node>,
     enum Side { Left, Right }
 
 
-    struct Equation<Node> {
-        left: HashSet<Fact<Node>>,
-        right: HashSet<Fact<Node>>
+    struct Equation {
+        left: HashSet<Fact>,
+        right: HashSet<Fact>
     }
 
 
     // Setup efficient representation of constraints.
     // fact_posns: gives the constraints that a fact appears in
     // equations:  the constraints (with conjunctions repr as sets for efficiency)
-    let mut fact_posns: HashMap<Fact<Node>, Vec<FactPosn>> = HashMap::new();
-    let mut equations: Vec<Equation<Node>> = vec!();
+    let mut fact_posns: HashMap<Fact, Vec<FactPosn>> = HashMap::new();
+    let mut equations: Vec<Equation> = vec!();
     for (i, c) in cs.into_iter().enumerate() {
         let left_facts  =  c.left.into_iter().map(|fact| { (fact, Side::Left)  });
         let right_facts = c.right.into_iter().map(|fact| { (fact, Side::Right) });
@@ -167,7 +164,7 @@ fn solve<Node>(core_scope: &ScopeRules<Node>,
     }
 
     // Initialize Sigma_surf = Sigma_core (frontier is implicitly part of Sigma_surf)
-    let mut frontier: Vec<Fact<Node>> = vec!();
+    let mut frontier: Vec<Fact> = vec!();
     for rule in core_scope.rules.values() {
         for fact in rule.iter() {
             frontier.push(fact);
@@ -242,10 +239,8 @@ fn solve<Node>(core_scope: &ScopeRules<Node>,
 }
 
 /*
-fn check_scope<Node, Val>(scope: &ScopeRules<Node>,
-                          rules: &Vec<RewriteRule<Node, Val>>)
-    where Node: Clone + fmt::Display + Eq + Hash, Val: fmt::Display
-{
+fn check_scope<Val>(scope: &ScopeRules,
+                          rules: &Vec<RewriteRule<Val>>) {
     for rule in rules.iter() {
         let lhs_order = calc_preorder(rule.lhs);
         let rhs_order = calc_preorder(rule.rhs);
@@ -263,8 +258,8 @@ fn check_scope<Node, Val>(scope: &ScopeRules<Node>,
 }
 */
 
-pub fn infer_scope<Node, Val>(language: &mut Language<Node, Val>)
-    where Node: Clone + fmt::Display + Eq + Hash, Val: fmt::Display
+pub fn infer_scope<Val>(language: &mut Language<Val>)
+    where Val : fmt::Display
 {
     let mut constraints = vec!();
     for rule in language.rewrite_rules.iter() {
