@@ -9,19 +9,31 @@ use term::Term::*;
 use preorder::Elem::*;
 
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-enum Elem {
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum Elem {
     Imp,
     Exp,
     Decl(Var, Path),
     Refn(Var, Path),
-    Hole(Name, Path)
+    Hole(Name)
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+impl fmt::Display for Elem {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Elem::Imp => write!(f, "{}", Imp),
+            &Elem::Exp => write!(f, "{}", Exp),
+            &Elem::Decl(ref v, _) => v.fmt(f),
+            &Elem::Refn(ref v, _) => v.fmt(f),
+            &Elem::Hole(ref n) => n.fmt(f)
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Lt {
-    left: Elem,
-    right: Elem
+    pub left: Elem,
+    pub right: Elem
 }
 
 impl Lt {
@@ -34,13 +46,13 @@ impl Lt {
 }
 
 pub fn resolve_binding<Val>(scope: &ScopeRules, term: &Term<Val>)
-                            -> HashMap<Path, Vec<Path>> {
+                            -> HashMap<Path, (Var, Vec<Path>)> {
     let scope = resolve_scope(scope, term);
     let mut shadows: HashSet<(Path, Path)> = HashSet::new();
     let mut in_scope: HashSet<(Path, Path)> = HashSet::new();
     let mut decl_names: HashMap<Path, Var> = HashMap::new();
     let mut refn_names: HashMap<Path, Var> = HashMap::new();
-    let mut bound: HashMap<Path, Vec<Path>> = HashMap::new();
+    let mut bound: HashMap<Path, (Var, Vec<Path>)> = HashMap::new();
 
     for lt in scope.into_iter() {
         match &lt.left {
@@ -77,7 +89,7 @@ pub fn resolve_binding<Val>(scope: &ScopeRules, term: &Term<Val>)
     }
 
     for refn in refn_names.keys() {
-        let mut binders = vec!();
+        let mut binders: Vec<Path> = vec!();
         for decl in decl_names.keys() {
             if in_scope.contains(&(refn.clone(), decl.clone())) {
                 let mut shadowed = false;
@@ -89,15 +101,36 @@ pub fn resolve_binding<Val>(scope: &ScopeRules, term: &Term<Val>)
                     }
                 }
                 if !shadowed {
-                    binders.push(decl);
+                    binders.push(decl.clone());
                 }
             }
         }
+        bound.insert(refn.clone(), (refn_names[refn].clone(), binders));
     }
     bound
 }
 
-pub fn resolve_scope<Val>(scope: &ScopeRules, term: &Term<Val>)
+pub fn resolve_hole_order<Val>(scope: &ScopeRules, term: &Term<Val>)
+                               -> HashSet<Lt> {
+    let mut set = HashSet::new();
+    for lt in resolve_scope(scope, term).into_iter() {
+        match (&lt.left, &lt.right) {
+            (&Elem::Hole(_), &Elem::Imp) => {
+                set.insert(lt);
+            }
+            (&Elem::Exp, &Elem::Hole(_)) => {
+                set.insert(lt);
+            }
+            (&Elem::Hole(_), &Elem::Hole(_)) => {
+                set.insert(lt);
+            }
+            _ => ()
+        }
+    }
+    set
+}
+
+fn resolve_scope<Val>(scope: &ScopeRules, term: &Term<Val>)
                           -> HashSet<Lt> {
     let mut order = HashSet::new();
     let mut resolved = resolve(scope, term, &vec!());
@@ -143,7 +176,7 @@ fn resolve<Val>(scope: &ScopeRules, term: &Term<Val>, path: &Path)
             ans.exps.insert(t);
         }
         &Hole(ref n) => {
-            let t = Elem::Hole(n.clone(), path.clone());
+            let t = Elem::Hole(n.clone());
             ans.imps.insert(t.clone());
             ans.exps.insert(t);
         }
@@ -160,18 +193,18 @@ fn resolve<Val>(scope: &ScopeRules, term: &Term<Val>, path: &Path)
             for fact in rule.iter() {
                 match (fact.left, fact.right) {
                     (Child(i), Imp) => {
-                        for a in resolveds[i].imps.iter() {
+                        for a in resolveds[i - 1].imps.iter() {
                             ans.imps.insert(a.clone());
                         }
                     }
                     (Exp, Child(j)) => {
-                        for b in resolveds[j].exps.iter() {
+                        for b in resolveds[j - 1].exps.iter() {
                             ans.exps.insert(b.clone());
                         }
                     }
                     (Child(i), Child(j)) => {
-                        for a in resolveds[i].imps.iter() {
-                            for b in resolveds[j].exps.iter() {
+                        for a in resolveds[i - 1].imps.iter() {
+                            for b in resolveds[j - 1].exps.iter() {
                                 ans.order.insert((a.clone(), b.clone()));
                             }
                         }

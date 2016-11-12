@@ -5,9 +5,10 @@ use std::collections::HashMap;
 use util::display_sep;
 use preorder::Elem::{Imp, Exp, Child};
 use rule::{Fact, ScopeRules, Language};
-use term::{RewriteRule, Term};
+use term::{RewriteRule, Term, Name};
 use term::Term::*;
-//use scope::{calc_preorder, calc_bindings};
+use resolve;
+use resolve::{resolve_hole_order, resolve_binding};
 
 
 
@@ -238,25 +239,41 @@ fn solve(core_scope: &ScopeRules,
     }
 }
 
-/*
 fn check_scope<Val>(scope: &ScopeRules,
-                          rules: &Vec<RewriteRule<Val>>) {
+                    rules: &Vec<RewriteRule<Val>>)
+    where Val : fmt::Display
+{
     for rule in rules.iter() {
-        let lhs_order = calc_preorder(rule.lhs);
-        let rhs_order = calc_preorder(rule.rhs);
-        let rhs_holes: HashSet<Name> = rule.rhs.holes()
+        let lhs_order = resolve_hole_order(scope, &rule.left);
+        let rhs_order = resolve_hole_order(scope, &rule.right);
+        let rhs_holes: HashSet<Name> = rule.right.holes().into_iter()
             .map(|(name, _)| name)
             .collect();
-        for lt in lhs_order.facts() {
-            if rhs_holes.contains(lt.left) && !rhs_order.contains(lt) {
-                panic!("Variables in {} and bound by {} may become unbound, in the rule:\n{}",
-                       lt.left, lt.right, rule);
+        for lt in lhs_order {
+            match &lt.left {
+                &resolve::Elem::Hole(ref lt_name) => {
+                    if rhs_holes.contains(lt_name)
+                        && !rhs_order.contains(&lt)
+                    {
+                        panic!("Variables in {} and bound by {} may become unbound, in the rule:\n{}",
+                               lt.left, lt.right, rule);
+                    }
+                }
+                _ => ()
             }
         }
-        
+        let bindings = resolve_binding(scope, &rule.right);
+        for (_, (refn, decls)) in bindings.into_iter() {
+            if decls.len() == 0 {
+                panic!("The variable reference {} is unbound in the right hand side of the rule:\n{}",
+                       refn, rule);
+            } else if decls.len() > 1 {
+                panic!("The variable reference {} is ambiguously bound in the right hand side of the rule:\n{}",
+                       refn, rule);
+            }
+        }
     }
 }
-*/
 
 pub fn infer_scope<Val>(language: &mut Language<Val>)
     where Val : fmt::Display
@@ -267,8 +284,7 @@ pub fn infer_scope<Val>(language: &mut Language<Val>)
             constraints.push(constraint.clone());
         }
     }
-    let surf = solve(&language.core_scope, &mut language.surf_scope, constraints);
-//    check_scope(surf, &language.rewrite_rules)
-    surf
+    solve(&language.core_scope, &mut language.surf_scope, constraints);
+    check_scope(&language.surf_scope, &language.rewrite_rules);
 }
 

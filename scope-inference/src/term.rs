@@ -7,7 +7,7 @@ use self::Term::*;
 pub type Name = String;
 pub type Node = String;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Var {
     pub name: Name,
 }
@@ -52,7 +52,7 @@ impl<Val> fmt::Display for Term<Val> where Val : fmt::Display {
                 }
                 write!(f, ")")
             }
-            &Hole(ref hole) => write!(f, "@{}", hole)
+            &Hole(ref hole) => write!(f, "{}", hole)
         }
     }
 }
@@ -77,7 +77,7 @@ impl<Val> Term<Val> {
         }
     }
 
-    fn holes(&self) -> HashMap<Name, Path> {
+    pub fn holes(&self) -> HashMap<Name, Path> {
         fn recur<Val>(term: &Term<Val>, path: &mut Vec<usize>, holes: &mut HashMap<Name, Path>) {
             match term {
                 &Decl(_)  => (),
@@ -143,5 +143,11 @@ impl<Val> RewriteRule<Val> {
             right: right,
             holes: holes
         }
+    }
+}
+
+impl<Val> fmt::Display for RewriteRule<Val> where Val : fmt::Display {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} => {}", self.left, self.right)
     }
 }
