@@ -140,6 +140,8 @@ pub struct Fact {
     pub right: Elem
 }
 
+pub type Conj = Vec<Fact>;
+
 impl fmt::Display for Fact {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}: {} ⋖ {}", self.node, self.left, self.right)
@@ -181,6 +183,13 @@ impl ScopeRules {
         ScopeRules{
             rules: map,
             kind: kind
+        }
+    }
+
+    pub fn satisfied(&self, fact: &Fact) -> bool {
+        match self.rules.get(&fact.node) {
+            None => false,
+            Some(rule) => rule.lt(fact.left, fact.right)
         }
     }
 

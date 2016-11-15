@@ -1,4 +1,5 @@
 use std::fmt;
+use std::ops::Index;
 use std::collections::HashMap;
 
 use self::Term::*;
@@ -40,9 +41,9 @@ pub enum Term<Val> {
 impl<Val> fmt::Display for Term<Val> where Val : fmt::Display {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            &Decl(ref var) => var.fmt(f),
-            &Refn(ref var) => var.fmt(f),
-            &Global(ref var) => var.fmt(f),
+            &Decl(ref var) => write!(f, "@{}", var),
+            &Refn(ref var) => write!(f, "${}", var),
+            &Global(ref var) => write!(f, "global${}", var),
             &Value(ref val) => val.fmt(f),
             &Stx(ref node, ref subterms) => {
                 try!(write!(f, "("));
@@ -77,6 +78,28 @@ impl<Val> Term<Val> {
         }
     }
 
+    pub fn vars(&self) -> Vec<Path> {
+        fn recur<Val>(term: &Term<Val>, path: &mut Vec<usize>, vars: &mut Vec<Path>) {
+            match term {
+                &Hole(_) => (),
+                &Decl(_)   => vars.push(path.clone()),
+                &Refn(_)   => vars.push(path.clone()),
+                &Global(_) => (), // Does not partipate in hygiene (cannot be bound by a decl)
+                &Value(_)  => (),
+                &Stx(_, ref subterms) => {
+                    for (i, subterm) in subterms.iter().enumerate() {
+                        path.push(i + 1);
+                        recur(subterm, path, vars);
+                        path.pop();
+                    }
+                }
+            }
+        }
+        let mut vars = vec!();
+        recur(self, &mut vec!(), &mut vars);
+        vars
+    }
+
     pub fn holes(&self) -> HashMap<Name, Path> {
         fn recur<Val>(term: &Term<Val>, path: &mut Vec<usize>, holes: &mut HashMap<Name, Path>) {
             match term {
@@ -106,6 +129,17 @@ impl<Val> Term<Val> {
 }
 
 pub type Path = Vec<usize>;
+
+impl<'a, Val> Index<&'a Path> for Term<Val> where Val : fmt::Display {
+    type Output = Term<Val>;
+    fn index(&self, path: &'a Path) -> &Term<Val> {
+        let mut t = self;
+        for &i in path.iter() {
+            t = t.child(i);
+        }
+        t
+    }
+}
 
 pub struct RewriteRule<Val> {
     pub left: Term<Val>,
