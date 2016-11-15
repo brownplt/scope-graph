@@ -4,15 +4,13 @@ use std::collections::HashMap;
 
 use util::display_sep;
 use preorder::Elem::{Imp, Exp, Child};
-use rule::{Fact, ScopeRules, Language};
+use rule::{Fact, Conj, ScopeRules, Language};
 use term::{RewriteRule, Term, Name};
 use term::Term::*;
 use resolve;
-use resolve::{resolve_hole_order, resolve_binding};
+use resolve::{resolve_hole_order, resolve_bindings};
 
 
-
-type Conj = Vec<Fact>;
 
 #[derive(Clone)]
 pub struct Constraint {
@@ -55,7 +53,7 @@ pub fn gen_constrs<Val>(rule: &RewriteRule<Val>) -> Vec<Constraint>
     constraints
 }
 
-fn gen_conj<Val>(term: &Term<Val>, a: &[usize], b: &[usize]) -> Conj
+pub fn gen_conj<Val>(term: &Term<Val>, a: &[usize], b: &[usize]) -> Conj
     where Val : fmt::Display
 {
     // true: downarrow, false: uparrow
@@ -100,7 +98,7 @@ fn gen_conj<Val>(term: &Term<Val>, a: &[usize], b: &[usize]) -> Conj
                 // Assuming (Exp <. Imp) for all terms t
                 // by Scope Rule axiom 4 (section 4.4)
             }
-            _ => panic!("Internal error! Generate conjunction: bad path")
+            _ => ()
         }
     }
     let mut conj = vec!();
@@ -262,7 +260,7 @@ fn check_scope<Val>(scope: &ScopeRules,
                 _ => ()
             }
         }
-        let bindings = resolve_binding(scope, &rule.right);
+        let bindings = resolve_bindings(scope, &rule.right);
         for (_, (refn, decls)) in bindings.into_iter() {
             if decls.len() == 0 {
                 panic!("The variable reference {} is unbound in the right hand side of the rule:\n{}",
