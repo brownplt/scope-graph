@@ -1,5 +1,7 @@
 language Pyret {
 
+  (Program body) {} (* Marks the toplevel of the program *)
+
   (Lambda params body) {
     import 1;
     import 2;
@@ -57,14 +59,90 @@ language Pyret {
     bind 1 in 2;
   }
 
+  (Newtype name namet rest) {
+    import 1;
+    import 2;
+    export 1;
+    export 2;
+  }
+
+
+
+  (* Data specific scoping rules *)
+
+  (DataExpr name namet params mixins variants shared) {
+    import 1;
+    import 2;
+    import 3;
+    import 4;
+    import 5;
+    import 6;
+    bind 1 in 3;
+    bind 1 in 5;
+    bind 1 in 6;
+    bind 3 in 5;
+    bind 3 in 6;
+    export 1;
+    export 2;
+    export 5;
+    export 6;
+  }
+
+  (Variant name members with_members) {
+    import 1;
+    import 2;
+    import 3;
+    bind 1 in 2;
+  }
+
+  (VariantMember member_type name) {
+    import 2;
+    export 2;
+  }
+
+  (VariantMemberTypeNormal) {}
+  (VariantMemberTypeMutable) {}
+
+  (DataField name value) {
+    import 1;
+    import 2;
+    export 1;
+  }
+
+  (MutableField name value) {
+    import 1;
+    import 2;
+    export 1;
+  }
+
+  (MethodField name params args body) {
+    import 1;
+    import 2;
+    import 3;
+    import 4;
+    bind 1 in 2;
+    bind 1 in 3;
+    bind 1 in 4;
+    bind 2 in 4;
+    bind 3 in 4;
+    export 1; 
+  }
+
+  
+
   (* Sugars *)
 
   sugar (For iter binds body)
   sugar (From param arg froms)
   sugar (Fun name params body rest_stmts)
-  sugar (Let name value rest_stmts)  
+  sugar (Let name value rest_stmts)
+  sugar (Data name params mixins variants shared)
+
 
   (* For loops *)
+
+(*  rule (Data name params mixins variants shared)
+    => (DataExpr name $a params mixins variants shared) *)
 
   rule (For iter binds body)
     => (DesugarFor iter binds (End) (End) body)
@@ -88,10 +166,12 @@ language Pyret {
     => (Arg arg (AppendArg new_arg args))
 
 
+
   (* Functions *)
 
   rule (Fun name params body rest_stmts)
     => (Letrec (LetrecBind name (Lambda params body) (End)) rest_stmts)
+
 
 
   (* Let statements *)
