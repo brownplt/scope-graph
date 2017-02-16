@@ -1,0 +1,84 @@
+language NamedLet {
+
+
+
+  (* Functions *)
+  
+  (Lambda param body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (NoShadowLambda param body) {
+    import 2;
+    bind 1 in 2;
+  }
+  (Param name params) {
+    import 1;
+    import 2;
+    export 1;
+    export 2;
+  }
+  (End) {}
+  
+  (Apply func args) {
+    import 1;
+    import 2;
+  }
+  (Arg arg args) {
+    import 1;
+    import 2;
+  }
+
+
+
+  (* Letrecs *)
+
+  (Letrec binds body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (Bindrec name defn binds) {
+    import 1;
+    import 2;
+    import 3;
+    bind 1 in 3;
+    bind 3 in 2;
+    export 3;
+  }
+
+
+
+  (* Named-Let sugar *)
+
+  sugar (Let tag binds body)
+  sugar (Bind name defn binds)
+
+  rule (Let tag binds body)
+    => (DesugarLet tag binds (End) (End) body)
+
+  rule (DesugarLet tag (End) params args body)
+    => (Apply (Letrec
+                (Bindrec @x (NoShadowLambda params body)
+                (Bindrec tag $x
+                (End)))
+               $x)
+        args)
+
+  rule (DesugarLet tag (Bind name defn binds) params args body)
+    => (DesugarLet tag binds (AppendParam name params) (AppendArg defn args) body)
+
+  rule (AppendParam param (End))
+    => (Param param (End))
+
+  rule (AppendParam new_param (Param param params))
+    => (Param param (AppendParam new_param params))
+
+  rule (AppendArg arg (End))
+    => (Arg arg (End))
+
+  rule (AppendArg new_arg (Arg arg args))
+    => (Arg arg (AppendArg new_arg args))
+
+}

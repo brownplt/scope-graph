@@ -44,12 +44,12 @@ mod tests {
     #[test]
     #[should_panic(expected = "The variable reference y is unbound in the right hand side of the rule:")]
     fn hygiene_check_unbound() {
-        load_lang("src/test_hygiene_check_unbound.scope");
+        load_lang("src/examples/test_hygiene_check_unbound.scope");
     }
 
     #[test]
     fn binding() {
-        let lang = load_lang("src/test_binding.scope");
+        let lang = load_lang("src/examples/test_binding.scope");
         let ref term1 = lang.rewrite_rules[2].right;
         let ref term2 = lang.rewrite_rules[3].right;
         assert!(has_binding(term1, &lang, (vec!(2, 1), vec!(1))));
@@ -60,7 +60,7 @@ mod tests {
     /// Example 1 from the paper (section 2.1: Single-arm Let)
     #[test]
     fn example_1() {
-        let lang = load_lang("src/example_1.scope");
+        let lang = load_lang("src/examples/example_1.scope");
 
         // (Let statement)
         // child 1: name
@@ -79,7 +79,7 @@ mod tests {
     /// Example 2 from the paper (section 2.2: Multi-arm Let*)
     #[test]
     fn example_2() {
-        let lang = load_lang("src/example_2.scope");
+        let lang = load_lang("src/examples/example_2.scope");
 
         // (Let* statement)
         // child 1: bindings
@@ -106,11 +106,37 @@ mod tests {
         assert!(has_fact(bind_rule, "export 3;"));
     }
 
+    #[test]
+    fn example_named_let() {
+        let lang = load_lang("src/examples/named_let.scope");
+
+        // ("Named" Let loop)
+        // See R5RS, section 7.3 "derived expression types"
+        // child 1: tag
+        // child 2: bindings
+        // child 3: body
+        let ref named_let_rule = lang.surf_scope.rules["Let"];
+        let facts: Vec<Fact> = named_let_rule.iter().collect();
+        assert_eq!(facts.len(), 6);
+        assert!(has_fact(named_let_rule, "import 1;"));
+        assert!(has_fact(named_let_rule, "import 2;"));
+        assert!(has_fact(named_let_rule, "import 3;"));
+        assert!(has_fact(named_let_rule, "bind 1 in 2;"));
+        assert!(has_fact(named_let_rule, "bind 2 in 3;"));
+        assert!(has_fact(named_let_rule, "bind 1 in 3;"));
+
+        // ("Named" Let binding)
+        // child 1: name
+        // child 2: definition
+        // child 3: rest of binding list
+        let ref bind_rule = lang.surf_scope.rules["Bind"];
+        let facts: Vec<Fact> = bind_rule.iter().collect();
+    }
 
     /// The Pyret examples from the paper (section 6)
     #[test]
     fn example_pyret() {
-        let lang = load_lang("src/pyret.scope");
+        let lang = load_lang("src/examples/pyret.scope");
 
         // (For loop)
         // child 1: iterating function
@@ -168,8 +194,6 @@ mod tests {
         assert!(has_fact(let_rule, "import 2;"));
         assert!(has_fact(let_rule, "import 3;"));
         assert!(has_fact(let_rule, "bind 1 in 3;"));
-
-        
     }
 
     // Load a language from a file and infer its scope.
