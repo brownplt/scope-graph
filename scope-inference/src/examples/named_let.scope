@@ -9,10 +9,6 @@ language NamedLet {
     import 2;
     bind 1 in 2;
   }
-  (NoShadowLambda param body) {
-    import 2;
-    bind 1 in 2;
-  }
   (Param name params) {
     import 1;
     import 2;
@@ -49,25 +45,40 @@ language NamedLet {
   }
 
 
+  (* Regular (parallel) Let *)
+  
+  (Let binds body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (Bind name defn binds) {
+    import 1;
+    import 2;
+    import 3;
+    export 1;
+    export 3;
+  }
+
 
   (* Named-Let sugar *)
 
-  sugar (Let tag binds body)
-  sugar (Bind name defn binds)
+  sugar (NamedLet tag binds body)
+  sugar (NamedLetBind name defn binds)
 
-  rule (Let tag binds body)
-    => (DesugarLet tag binds (End) (End) body)
+  rule (NamedLet tag binds body)
+    => (DesugarNamedLet tag binds body (End) (End))
 
-  rule (DesugarLet tag (End) params args body)
-    => (Apply (Letrec
-                (Bindrec @x (NoShadowLambda params body)
-                (Bindrec tag $x
-                (End)))
-               $x)
-        args)
+  rule (DesugarNamedLet tag (End) body params args)
+    => (Apply
+         (Letrec
+           (Bindrec @f (Lambda params (Let (Bind tag $f (End)) body))
+             (End))
+           $f)
+         args)
 
-  rule (DesugarLet tag (Bind name defn binds) params args body)
-    => (DesugarLet tag binds (AppendParam name params) (AppendArg defn args) body)
+  rule (DesugarNamedLet tag (NamedLetBind name defn binds) body params args)
+    => (DesugarNamedLet tag binds body (AppendParam name params) (AppendArg defn args))
 
   rule (AppendParam param (End))
     => (Param param (End))
