@@ -112,19 +112,20 @@ mod tests {
         // child 1: tag
         // child 2: bindings
         // child 3: body
-        let ref named_let_rule = lang.surf_scope.rules["Let"];
-        assert_eq!(named_let_rule.iter().count(), 5);
+        let ref named_let_rule = lang.surf_scope.rules["NamedLet"];
+        assert_eq!(named_let_rule.iter().count(), 6);
         assert!(has_fact(named_let_rule, "import 1;"));
         assert!(has_fact(named_let_rule, "import 2;"));
         assert!(has_fact(named_let_rule, "import 3;"));
         assert!(has_fact(named_let_rule, "bind 1 in 3;"));
         assert!(has_fact(named_let_rule, "bind 2 in 3;"));
+        assert!(has_fact(named_let_rule, "bind 2 in 1;"));
 
         // ("Named" Let binding)
         // child 1: name
         // child 2: definition
         // child 3: rest of binding list
-        let ref bind_rule = lang.surf_scope.rules["Bind"];
+        let ref bind_rule = lang.surf_scope.rules["NamedLetBind"];
         assert_eq!(bind_rule.iter().count(), 5);
         assert!(has_fact(bind_rule, "import 1;"));
         assert!(has_fact(bind_rule, "import 2;"));

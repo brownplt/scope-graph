@@ -63,22 +63,20 @@ language NamedLet {
 
   (* Named-Let sugar *)
 
-  sugar (NamedLet tag binds body)
-  sugar (NamedLetBind name defn binds)
+  sugar (NamedLet proc_id binds body)
+  sugar (NamedLetBind arg_id init_expr binds)
 
-  rule (NamedLet tag binds body)
-    => (DesugarNamedLet tag binds body (End) (End))
+  rule (NamedLet proc_id binds body)
+    => (DesugarNamedLet proc_id binds body (End) (End))
 
-  rule (DesugarNamedLet tag (End) body params args)
-    => (Apply
-         (Letrec
-           (Bindrec @f (Lambda params (Let (Bind tag $f (End)) body))
-             (End))
-           $f)
-         args)
+  rule (DesugarNamedLet proc_id (End) body params args)
+    => (Letrec
+         (Bindrec @f (Lambda params (Let (Bind proc_id $f (End)) body))
+           (End))
+         (Apply $f args))
 
-  rule (DesugarNamedLet tag (NamedLetBind name defn binds) body params args)
-    => (DesugarNamedLet tag binds body (AppendParam name params) (AppendArg defn args))
+  rule (DesugarNamedLet proc_id (NamedLetBind arg_id init_expr binds) body params args)
+    => (DesugarNamedLet proc_id binds body (AppendParam arg_id params) (AppendArg init_expr args))
 
   rule (AppendParam param (End))
     => (Param param (End))
