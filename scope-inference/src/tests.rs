@@ -134,6 +134,52 @@ mod tests {
         assert!(has_fact(bind_rule, "export 3;"));
     }
 
+    #[test]
+    fn example_list_comprehension() {
+        let lang = load_lang("src/examples/list_comprehension.scope");
+
+        // [ e | Q ]
+        //   1   2
+        // See Haskell Standard, section 3.11: List Comprehensions
+        let ref rule = lang.surf_scope.rules["ListCompr"];
+        assert_eq!(rule.iter().count(), 3);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "bind 2 in 1;"));
+
+        // Boolean Guards
+        // b, Q
+        // 1  2
+        let ref rule = lang.surf_scope.rules["Guard"];
+        assert_eq!(rule.iter().count(), 3);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "export 2;"));
+
+        // Generators
+        // p <- l, Q
+        // 1    2  3
+        let ref rule = lang.surf_scope.rules["Generator"];
+        assert_eq!(rule.iter().count(), 6);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "import 3;"));
+        assert!(has_fact(rule, "bind 1 in 3;"));
+        assert!(has_fact(rule, "export 1;"));
+        assert!(has_fact(rule, "export 3;"));
+
+        // Local bind
+        // let decls, Q
+        //      1     2
+        let ref rule = lang.surf_scope.rules["LocalBind"];
+        assert_eq!(rule.iter().count(), 5);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "bind 1 in 2;"));
+        assert!(has_fact(rule, "export 1;"));
+        assert!(has_fact(rule, "export 2;"));
+    }
+
     /// The Pyret examples from the paper (section 6)
     #[test]
     fn example_pyret() {

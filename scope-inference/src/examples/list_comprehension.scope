@@ -1,0 +1,101 @@
+language ListComprehension {
+
+
+  (* Haskell Lets are letrecs *)
+
+  (Let binds body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (Bind name defn binds) {
+    import 1;
+    import 2;
+    import 3;
+    bind 1 in 3;
+    bind 3 in 2;
+    export 3;
+  }
+  (End) {}
+
+
+  (* Case Expressions: `case expr of pattern -> template | ...` *)
+
+  (Case expr cases) {
+    import 1;
+    import 2;
+  }
+  (ACase pattern template) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (Underscore) {}
+
+
+  (* If-then-else *)
+
+  (If condition then else) {
+    import 1;
+    import 2;
+    import 3;
+  }
+
+
+  (* Functions *)
+
+  (Lambda pattern expr) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (Apply func arg) {
+    import 1;
+    import 2;
+  }
+
+
+  (* Lists *)
+
+  (Cons head tail) {
+    import 1;
+    import 2;
+  }
+  (Empty) {}
+  
+
+
+  (* List Comprehension Sugar *)
+  (* See Haskell Standard, section 3.11: List Comprehensions *)
+  (* https://www.haskell.org/onlinereport/exps.html#sect3.11 *)
+
+  sugar (ListCompr expr qualifiers)
+  sugar (Guard expr qualifiers)
+  sugar (Generator pattern expr qualifiers)
+  sugar (LocalBind binds qualifiers)
+
+  (* [ e | True ] = [ e ]           *)
+  (* [ e | q ]    = [ e | q, True ] *)
+  rule (ListCompr e (End))
+    => (Cons e (Empty))
+
+  (* [ e | b, Q ]  = if b then [ e | Q ] else [] *)
+  rule (ListCompr e (Guard b q))
+    => (If b (ListCompr e q) (Empty))
+
+  (* [ e | p <- l, Q ]    = let ok p = [ e | Q ]  *)
+  (*                            ok _ = []          *)
+  (*                        in concatMap ok l      *)
+  rule (ListCompr e (Generator p l q))
+    => (Let (Bind @ok (Lambda @x (Case $x
+                                   (ACase p (ListCompr e q)
+                                   (ACase (Underscore) (Empty)
+                                   (End)))))
+            (End))
+         (Apply (Apply global$concatMap $ok) l))
+
+  (* [ e | let decls, Q ]  =  let decls in [ e | Q ] *)
+  rule (ListCompr e (LocalBind decls q))
+    => (Let decls (ListCompr e q))
+
+}

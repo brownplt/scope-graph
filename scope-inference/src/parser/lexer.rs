@@ -57,7 +57,7 @@ lazy_static! {
         make_matcher(Export  , "export\\b"),
         make_matcher(DeclMark, "@"),
         make_matcher(RefnMark, "\\$"),
-        make_matcher(GlobalMark, "global$"),
+        make_matcher(GlobalMark, "global\\$"),
         make_matcher(Num     , "[0-9]+"),
         make_matcher(Name    , "[_a-zA-Z][a-zA-Z_0-9-]*")
         ];

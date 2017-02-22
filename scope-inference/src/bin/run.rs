@@ -17,12 +17,15 @@ fn main() {
     let mut lang_3: Language<usize> =
         parse_language(&SourceFile::open("src/examples/named_let.scope").unwrap());
     let mut lang_4: Language<usize> =
+        parse_language(&SourceFile::open("src/examples/list_comprehension.scope").unwrap());
+    let mut lang_5: Language<usize> =
         parse_language(&SourceFile::open("src/examples/pyret.scope").unwrap());
     let infer_timer = SystemTime::now();
     infer_scope(&mut lang_1);
     infer_scope(&mut lang_2);
     infer_scope(&mut lang_3);
     infer_scope(&mut lang_4);
+    infer_scope(&mut lang_5);
     let total_time = total_timer.elapsed();
     let infer_time = infer_timer.elapsed();
 
@@ -30,10 +33,12 @@ fn main() {
     println!("{}", lang_1.surf_scope);
     println!("\n=============== Example 2 (Let*) ===============\n");
     println!("{}", lang_2.surf_scope);
-    println!("\n=============== Example 3 (Named Let) ==========\n");
+    println!("\n=============== Scheme Named Let ===============\n");
     println!("{}", lang_3.surf_scope);
-    println!("\n====================  Pyret  ===================\n");
+    println!("\n=============== Haskell List Comprehensions ====\n");
     println!("{}", lang_4.surf_scope);
+    println!("\n====================  Pyret  ===================\n");
+    println!("{}", lang_5.surf_scope);
 
     println!("\nTotal time {:?}", total_time);
     println!("Infer time {:?}", infer_time);
