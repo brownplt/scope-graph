@@ -48,6 +48,12 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "The variable reference z is unbound in the right hand side of the rule:")]
+    fn hole_as_refn_check_unbound() {
+        load_lang("src/examples/test_hole_as_refn_check_unbound.scope");
+    }
+    
+    #[test]
     fn binding() {
         let lang = load_lang("src/examples/test_binding.scope");
         let ref term1 = lang.rewrite_rules[2].right;
@@ -117,9 +123,9 @@ mod tests {
         assert!(has_fact(named_let_rule, "import 1;"));
         assert!(has_fact(named_let_rule, "import 2;"));
         assert!(has_fact(named_let_rule, "import 3;"));
-        assert!(has_fact(named_let_rule, "bind 1 in 3;"));
+        assert!(has_fact(named_let_rule, "bind 1 in 2;"));
         assert!(has_fact(named_let_rule, "bind 2 in 3;"));
-        assert!(has_fact(named_let_rule, "bind 2 in 1;"));
+        assert!(has_fact(named_let_rule, "bind 1 in 3;"));
 
         // ("Named" Let binding)
         // child 1: name

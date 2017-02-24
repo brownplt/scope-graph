@@ -75,6 +75,13 @@ impl<'s> Parser<'s> {
         Ok(Term::Hole(format!("{}", lex.span)))
     }
 
+    fn parse_hole_to_refn<Val>(&mut self) -> Result<Term<Val>, ()> {
+        try!(self.parse_token(Token::HoleToRefnMark));
+        let _lex = self.parse_token(Token::Name);
+        let lex = self.check("Hole name", _lex);
+        Ok(Term::HoleToRefn(format!("{}", lex)))
+    }
+
     fn parse_node(&mut self) -> Result<Node, ()> {
         let node = try!(self.parse_token(Token::Name));
         Ok(format!("{}", node))
@@ -123,6 +130,7 @@ impl<'s> Parser<'s> {
     pub fn parse_term<Val>(&mut self) -> Result<Term<Val>, ()> {
         Err(())
             .or_else(|_| self.parse_hole())
+            .or_else(|_| self.parse_hole_to_refn())
             .or_else(|_| self.parse_stx())
             .or_else(|_| self.parse_refn())
             .or_else(|_| self.parse_decl())

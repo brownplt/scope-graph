@@ -71,9 +71,8 @@ language NamedLet {
 
   rule (DesugarNamedLet proc_id (End) body params args)
     => (Letrec
-         (Bindrec @f (Lambda params (Let (Bind proc_id $f (End)) body))
-           (End))
-         (Apply $f args))
+         (Bindrec proc_id (Lambda params body) (End))
+         (Apply as_refn$proc_id args))
 
   rule (DesugarNamedLet proc_id (NamedLetBind arg_id init_expr binds) body params args)
     => (DesugarNamedLet proc_id binds body (AppendParam arg_id params) (AppendArg init_expr args))

@@ -35,7 +35,8 @@ pub enum Term<Val> {
     Global(Var),
     Value(Val),
     Stx(Node, Vec<Term<Val>>),
-    Hole(Name)
+    Hole(Name),
+    HoleToRefn(Name)
 }
 
 impl<Val> fmt::Display for Term<Val> where Val : fmt::Display {
@@ -53,7 +54,8 @@ impl<Val> fmt::Display for Term<Val> where Val : fmt::Display {
                 }
                 write!(f, ")")
             }
-            &Hole(ref hole) => write!(f, "{}", hole)
+            &Hole(ref hole) => write!(f, "{}", hole),
+            &HoleToRefn(ref hole) => write!(f, "copy${}", hole)
         }
     }
 }
@@ -85,6 +87,7 @@ impl<Val> Term<Val> {
                 &Decl(_)   => vars.push(path.clone()),
                 &Refn(_)   => vars.push(path.clone()),
                 &Global(_) => (), // Does not partipate in hygiene (cannot be bound by a decl)
+                &HoleToRefn(_) => (), // [TODO] Does not participate in hygiene much
                 &Value(_)  => (),
                 &Stx(_, ref subterms) => {
                     for (i, subterm) in subterms.iter().enumerate() {
@@ -114,6 +117,7 @@ impl<Val> Term<Val> {
                         path.pop();
                     }
                 }
+                &HoleToRefn(_) => (),
                 &Hole(ref hole) => {
                     if holes.contains_key(hole) {
                         panic!("Rewrite rule contains duplicate hole: {}", hole);
