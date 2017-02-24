@@ -1,0 +1,13 @@
+language Test {
+
+  (Lambda param body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+
+  sugar (BadMacro z)
+
+  rule (BadMacro z) => (Lambda @y as_refn$z)
+
+}
