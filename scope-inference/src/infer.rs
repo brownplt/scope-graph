@@ -229,7 +229,7 @@ fn solve(core_scope: &ScopeRules,
         for fact in rule.iter() {
             if core_scope_complement.contains(&fact) {
                 // ERROR
-                panic!("\n\nScope inference failed. Inferred scope:\n\n{}\n(Invalid fact: {})\n\n",
+                panic!("\n\nScope inference failed. Inferred scope:\n\n{}\nInferred invalid fact: {}\n\n",
                        surf_scope,
                        fact);
             }
