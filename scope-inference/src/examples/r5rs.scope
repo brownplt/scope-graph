@@ -1,0 +1,199 @@
+language NamedLet {
+
+
+  (* Functions *)
+  
+  (Lambda param body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (Param name params) {
+    import 1;
+    import 2;
+    export 1;
+    export 2;
+  }
+  (End) {}
+  
+  (Apply func args) {
+    import 1;
+    import 2;
+  }
+  (Arg arg args) {
+    import 1;
+    import 2;
+  }
+
+
+  (* Multiple bodies *)
+  
+  (Seqn expr rest) {
+    import 1;
+    import 2;
+  }
+
+
+  (* Letrecs *)
+
+  (* TODO *)
+  (LetrecCore binds body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (Bindrec name defn binds) {
+    import 1;
+    import 2;
+    import 3;
+    bind 1 in 3;
+    bind 3 in 2;
+    export 3;
+  }
+
+
+  (* Regular (parallel) Let *)
+  
+  (Let binds body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (LetBind name defn binds) {
+    import 1;
+    import 2;
+    import 3;
+    export 1;
+    export 3;
+  }
+  
+  (Set var defn stmts) {
+    import 1;
+    import 2;
+    import 3;
+    export 3;
+  }
+
+
+  (* Miscellaneous (and undinteresting) core constructs *)
+
+  (If cond consq) {
+    import 1;
+    import 2;
+  }
+  (IfThenElse cond consq altern) {
+    import 1;
+    import 2;
+    import 3;
+  }
+  (Void) {}
+  
+
+  (* TODO *)
+
+  (Todo) {}
+
+
+  (* Sugars *)
+
+  sugar (NamedLet proc_id binds body)
+  sugar (NamedLetBind arg_id init_expr binds)
+  sugar (Letrec binds body)
+  sugar (LetrecBind var init binds)
+  sugar (Letstar binds body)
+  sugar (LetstarBind var init binds)
+  sugar (Case keys clauses)
+  sugar (CaseClause atoms result clauses)
+  sugar (CaseElse result)
+
+
+  (* Case *)
+
+  rule (Case key (CaseElse result))
+    => (Begin result)
+
+  rule (Case key (CaseClause atoms result (End)))
+    => (If (Apply global$memv (Arg key (Arg atoms (End))))
+           result)
+
+  rule (Case key (CaseClause atoms result clauses))
+    => (Let (LetBind @atom_key key (End))
+         (IfThenElse (Apply global$memv (Arg $atom_key (Arg atoms (End))))
+           result
+           (Case $atom_key clauses)))
+
+  (* Letrec *)
+
+(*
+  rule (Letrec (LetrecBind x a (LetrecBind y b (End))) body)
+    => (Letstar (LetstarBind x (Void) (LetstarBind y (Void) (End)))
+         (Letstar (LetstarBind @alpha a (LetstarBind @beta b (End)))
+           (Set (Todo) $alpha (Set (Todo) $beta body))))
+*)
+
+
+  rule (Letrec binds body)
+    => (DesugarLetrec binds (End) (End) body)
+(*    => (DesugarLetrec (ReverseLetrecBinds binds (End)) (End) (End) body) *)
+
+  rule (DesugarLetrec (End) undef_binds init_binds body)
+    => (Letstar undef_binds (Letstar init_binds body))
+
+  rule (DesugarLetrec
+         (LetrecBind var init binds)
+         undef_binds
+         init_binds
+         body)
+    => (DesugarLetrec
+         binds
+         (LetstarBind var (Void) undef_binds)
+         (LetstarBind @x init init_binds)
+         (Set (Todo) $x body))
+
+  rule (ReverseLetrecBinds (End) (End))
+    => (End)
+
+  rule (ReverseLetrecBinds (End) (LetrecBind id init binds))
+    => (LetrecBind id init binds)
+
+  rule (ReverseLetrecBinds (LetrecBind id init binds) reversed)
+    => (ReverseLetrecBinds binds (LetrecBind id init reversed))
+
+
+  (* Letstar *)
+
+  rule (Letstar (End) body)
+    => (Let (End) body)
+
+  rule (Letstar (LetstarBind id init binds) body)
+    => (Let (LetBind id init (end))
+         (Letstar binds body))
+
+
+  (* Named-Let *)
+
+  rule (NamedLet proc_id binds body)
+    => (DesugarNamedLet proc_id binds body (End) (End))
+
+  rule (DesugarNamedLet proc_id (End) body params args)
+    => (LetrecCore
+         (Bindrec @f (Lambda params (Let (LetBind proc_id $f (End)) body))
+           (End))
+         (Apply $f args))
+
+  rule (DesugarNamedLet proc_id (NamedLetBind arg_id init_expr binds) body params args)
+    => (DesugarNamedLet proc_id binds body (AppendParam arg_id params) (AppendArg init_expr args))
+
+  rule (AppendParam param (End))
+    => (Param param (End))
+
+  rule (AppendParam new_param (Param param params))
+    => (Param param (AppendParam new_param params))
+
+  rule (AppendArg arg (End))
+    => (Arg arg (End))
+
+  rule (AppendArg new_arg (Arg arg args))
+    => (Arg arg (AppendArg new_arg args))
+
+}
