@@ -7,12 +7,15 @@ language NamedLet {
     import 1;
     import 2;
     bind 1 in 2;
+    bind 1 in 1; (* ! *)
   }
   (Param name params) {
     import 1;
     import 2;
     export 1;
     export 2;
+    bind 1 in 2; (* ! *)
+    bind 2 in 1;
   }
   (End) {}
   
@@ -27,8 +30,9 @@ language NamedLet {
 
 
   (* Multiple bodies *)
-  
-  (Seqn expr rest) {
+
+  (Void) {}
+  (Begin expr rest) {
     import 1;
     import 2;
   }
@@ -36,8 +40,7 @@ language NamedLet {
 
   (* Letrecs *)
 
-  (* TODO *)
-  (LetrecCore binds body) {
+  (Letrec binds body) {
     import 1;
     import 2;
     bind 1 in 2;
@@ -98,33 +101,24 @@ language NamedLet {
   }
 
 
-  (* Miscellaneous (and undinteresting) core constructs *)
+  (* Conditionals *)
 
-  (If cond consq) {
-    import 1;
-    import 2;
-  }
-  (IfThenElse cond consq altern) {
+  (If cond consq altern) {
     import 1;
     import 2;
     import 3;
   }
-  (Void) {}
   
-
-  (* TODO *)
-
-  (Todo) {}
-
 
   (* Sugars *)
 
-  sugar (Letrec binds body)
-  sugar (LetrecBind var init binds)
-  sugar (RLetrecBind var init binds)
-
   sugar (Letstar binds body)
   sugar (LetstarBind var init binds)
+
+  sugar (Do binds test body)
+  sugar (DoBindStep var init step binds)
+  sugar (DoBind var init binds)  (* If 'step...' is empty *)
+  sugar (DoTest test expr)
 
 
   (* Letstar *)
@@ -137,43 +131,45 @@ language NamedLet {
          (Letstar binds body))
 
 
-  (* Letrec *)
-(*
-  rule (Letrec binds body)
-    => (DesugarLetrec (ReverseLetrecBinds binds (End)) (End) (End) body)
+  (* Do *)
 
-  rule (DesugarLetrec (End) undef_binds init_binds body)
-    => (Letstar undef_binds (Letstar init_binds body))
+  rule (Do binds test commands)
+    => (DesugarDo binds test commands (End) (End) (End))
 
-  rule (DesugarLetrec
-         (RLetrecBind var init binds)
-         undef_binds
-         init_binds
-         body)
-    => (DesugarLetrec
-         binds
-         (LetstarBind var (Void) undef_binds)
-         (LetstarBind @x init init_binds)
-         (Set (Todo) $x body))
-*)
+  rule (DesugarDo (DoBind var init binds) test commands inits vars steps)
+    => (DesugarDo binds test commands
+         (AppendArg init inits)
+         (AppendParam var vars)
+         (AppendArg as_refn$var steps))
 
-  rule (ReverseLetrecBinds (End) (End))
-    => (End)
+  rule (DesugarDo (DoBindStep var init step binds) test commands inits vars steps)
+    => (DesugarDo binds test commands
+         (AppendArg init inits)
+         (AppendParam var vars)
+         (AppendArg step steps))
 
-  rule (ReverseLetrecBinds (End) (RLetrecBind id init binds))
-    => (LetrecBind id init binds)
-
-  rule (ReverseLetrecBinds (LetrecBind id init binds) reversed)
-    => (ReverseLetrecBinds binds (RLetrecBind id init reversed))
+  rule (DesugarDo (End) (DoTest test exprs) commands (Arg a inits) (Param b vars) (Arg c steps))
+    => (Letrec (Bindrec @loop
+         (Lambda (Param b vars)
+           (If test
+             (Begin (Void) exprs)
+             (Begin commands (Apply $loop (Arg c steps))))))
+         (Apply $loop (Arg a inits)))
 
 
-(* EXAMPLE *)
 
-(*
-  rule (Letrec (LetrecBind x a (LetrecBind y b (End))) body)
-    => (Letstar (LetstarBind x (Void) (LetstarBind y (Void) (End)))
-         (Letstar (LetstarBind @alpha a (LetstarBind @beta b (End)))
-           (Set (Todo) $alpha (Set (Todo) $beta body))))
-*)
+  (* Helpers *)
+  
+  rule (AppendParam param (End))
+    => (Param param (End))
+
+  rule (AppendParam new_param (Param param params))
+    => (Param param (AppendParam new_param params))
+
+  rule (AppendArg arg (End))
+    => (Arg arg (End))
+
+  rule (AppendArg new_arg (Arg arg args))
+    => (Arg arg (AppendArg new_arg args))
 
 }
