@@ -41,7 +41,6 @@ language Pyret {
     import 3;
     export 3;
     bind 1 in 3;
-    bind 3 in 1;
     bind 3 in 2;
   }
 

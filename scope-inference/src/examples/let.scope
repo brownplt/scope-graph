@@ -1,0 +1,54 @@
+language Test {
+  (Lambda param body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (Param param params) {
+    import 1;
+    import 2;
+    export 1;
+    export 2;
+  }
+  (Arg arg args) {
+    import 1;
+    import 2;
+  }
+  (Apply func arg) {
+    import 1;
+    import 2;
+  }
+  (Begin body) {
+    import 1;
+  }
+
+(*
+  (Let binds body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (LetBind name defn binds) {
+    import 1;
+    import 2;
+    import 3;
+    export 1;
+    export 3;
+    bind 1 in 3;
+    bind 3 in 1;
+  }
+*)
+  sugar (Let binds body)
+  sugar (Bind name defn binds)
+  sugar (EndBinds)
+
+  rule (Let binds body)
+    => (DesugarLet binds body (End) (End))
+
+  rule (DesugarLet (Bind x defn binds) body params args)
+    => (DesugarLet binds body (Param x params) (Arg defn args))
+
+  rule (DesugarLet (End) body params args)
+    => (Apply (Lambda params body) args)
+
+}

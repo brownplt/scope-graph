@@ -1,4 +1,4 @@
-language NamedLet {
+language R5RS {
 
 
   (* Functions *)
@@ -13,8 +13,6 @@ language NamedLet {
     import 2;
     export 1;
     export 2;
-    bind 1 in 2; (* ! *)
-    bind 2 in 1;
   }
   (End) {}
   
@@ -79,6 +77,9 @@ language NamedLet {
   sugar (Letrec binds body)
   sugar (LetrecBind var init binds)
 
+  sugar (NamedLet proc_id binds body)
+  sugar (NamedLetBind arg_id init_expr binds)
+  
   sugar (Do binds test body)
   sugar (DoBindStep var init step binds)
   sugar (DoBind var init binds)  (* If 'step...' is empty *)
@@ -138,6 +139,20 @@ language NamedLet {
            (Set as_refn$x $alpha (Set as_refn$y $beta body))))
 
 
+  (* Named Let *)
+
+  rule (NamedLet proc_id binds body)
+    => (DesugarNamedLet proc_id binds body (End) (End))
+
+  rule (DesugarNamedLet proc_id (End) body params args)
+    => (Apply (Letrec
+         (Letrecbind proc_id (Lambda params body) (End))
+         as_refn$proc_id)
+         args)
+
+  rule (DesugarNamedLet proc_id (NamedLetBind arg_id init_expr binds) body params args)
+    => (DesugarNamedLet proc_id binds body (AppendParam arg_id params) (AppendArg init_expr args))
+
 
   (* Do *)
 
@@ -183,5 +198,6 @@ language NamedLet {
 
   rule (AppendArg new_arg (Arg arg args))
     => (Arg arg (AppendArg new_arg args))
+
 
 }

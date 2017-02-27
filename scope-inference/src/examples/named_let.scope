@@ -62,9 +62,6 @@ language NamedLet {
 
   (* Named-Let sugar *)
 
-  sugar (NamedLet proc_id binds body)
-  sugar (NamedLetBind arg_id init_expr binds)
-
   rule (NamedLet proc_id binds body)
     => (DesugarNamedLet proc_id binds body (End) (End))
 

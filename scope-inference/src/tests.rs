@@ -220,7 +220,7 @@ mod tests {
         // child 3: function body
         // child 4: rest of program
         let ref fun_rule = lang.surf_scope.rules["Fun"];
-        assert_eq!(fun_rule.iter().count(), 11);
+        assert_eq!(fun_rule.iter().count(), 10);
         assert!(has_fact(fun_rule, "import 1;"));
         assert!(has_fact(fun_rule, "import 2;"));
         assert!(has_fact(fun_rule, "import 3;"));
@@ -231,7 +231,6 @@ mod tests {
         assert!(has_fact(fun_rule, "bind 1 in 2;"));
         assert!(has_fact(fun_rule, "bind 1 in 3;"));
         assert!(has_fact(fun_rule, "bind 2 in 3;"));
-        assert!(has_fact(fun_rule, "bind 1 in 1;"));
 
         // (Let statement)
         // child 1: name
