@@ -55,7 +55,7 @@ impl<Val> fmt::Display for Term<Val> where Val : fmt::Display {
                 write!(f, ")")
             }
             &Hole(ref hole) => write!(f, "{}", hole),
-            &HoleToRefn(ref hole) => write!(f, "copy${}", hole)
+            &HoleToRefn(ref hole) => write!(f, "as_refn${}", hole)
         }
     }
 }
@@ -122,6 +122,31 @@ impl<Val> Term<Val> {
                     if holes.contains_key(hole) {
                         panic!("Rewrite rule contains duplicate hole: {}", hole);
                     }
+                    holes.insert(hole.clone(), path.clone());
+                }
+            }
+        }
+        let mut holes = HashMap::new();
+        recur(self, &mut vec!(), &mut holes);
+        holes
+    }
+
+    pub fn hole_as_refns(&self) -> HashMap<Name, Path> {
+        fn recur<Val>(term: &Term<Val>, path: &mut Vec<usize>, holes: &mut HashMap<Name, Path>) {
+            match term {
+                &Decl(_)  => (),
+                &Refn(_)  => (),
+                &Global(_)=> (),
+                &Value(_) => (),
+                &Hole(_)  => (),
+                &Stx(_, ref subterms) => {
+                    for (i, subterm) in subterms.iter().enumerate() {
+                        path.push(i + 1);
+                        recur(subterm, path, holes);
+                        path.pop();
+                    }
+                }
+                &HoleToRefn(ref hole) => {
                     holes.insert(hole.clone(), path.clone());
                 }
             }

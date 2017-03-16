@@ -8,7 +8,7 @@ use rule::{Fact, Conj, ScopeRules, Language};
 use term::{RewriteRule, Term, Name};
 use term::Term::*;
 use resolve;
-use resolve::{resolve_hole_order, resolve_bindings};
+use resolve::{resolve_hole_order, resolve_bindings, resolve_lt};
 
 
 
@@ -242,6 +242,7 @@ fn check_scope<Val>(scope: &ScopeRules,
     where Val : fmt::Display
 {
     for rule in rules.iter() {
+        // Check that variables in holes will always remain bound.
         let lhs_order = resolve_hole_order(scope, &rule.left);
         let rhs_order = resolve_hole_order(scope, &rule.right);
         let rhs_holes: HashSet<Name> = rule.right.holes().into_iter()
@@ -260,6 +261,7 @@ fn check_scope<Val>(scope: &ScopeRules,
                 _ => ()
             }
         }
+        // Check that introduced variables are well bound in the inferred scope.
         let bindings = resolve_bindings(scope, &rule.right);
         for (_, (refn, decls)) in bindings.into_iter() {
             if decls.len() == 0 {
@@ -268,6 +270,22 @@ fn check_scope<Val>(scope: &ScopeRules,
             } else if decls.len() > 1 {
                 panic!("The variable reference {} is ambiguously bound in the right hand side of the rule:\n{}",
                        refn, rule);
+            }
+        }
+        // Check that `as_refn$x` holes are always in scope of their hole.
+        let holes = rule.right.holes();
+        let hole_as_refns = rule.right.hole_as_refns();
+        for (hole1, ref path1) in hole_as_refns.iter() {
+            let mut is_bound = false;
+            for (hole2, ref path2) in holes.iter() {
+                if hole2 == hole1 && resolve_lt(scope, &rule.right, path1, path2) {
+                    is_bound = true;
+                }
+            }
+            if !is_bound {
+                let r: Term<Val> = HoleToRefn(hole1.clone());
+                panic!("The variable reference {} is unbound in the right hand side of the rule:\n{}",
+                       r, rule);
             }
         }
     }

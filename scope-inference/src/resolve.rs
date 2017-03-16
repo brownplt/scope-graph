@@ -156,7 +156,7 @@ fn resolve_scope<Val>(scope: &ScopeRules, term: &Term<Val>)
 
 // Determine weather one variable (or hole) in a term is less than other,
 // given a set of scoping rules.
-fn resolve_lt<Val>(scope: &ScopeRules, term: &Term<Val>, var1: &[usize], var2: &[usize]) -> bool
+pub fn resolve_lt<Val>(scope: &ScopeRules, term: &Term<Val>, var1: &[usize], var2: &[usize]) -> bool
     where Val : fmt::Display
 {
     let conj = gen_conj(term, var1, var2);

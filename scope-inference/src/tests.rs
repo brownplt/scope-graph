@@ -48,7 +48,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "The variable reference z is unbound in the right hand side of the rule:")]
+    #[should_panic(expected = "The variable reference as_refn$z is unbound in the right hand side of the rule:")]
     fn hole_as_refn_check_unbound() {
         load_lang("src/examples/test_hole_as_refn_check_unbound.scope");
     }
@@ -110,43 +110,101 @@ mod tests {
     }
 
     #[test]
-    fn example_named_let() {
-        let lang = load_lang("src/examples/named_let.scope");
-
-        // ("Named" Let loop)
+    fn example_r5rs() {
         // See R5RS, section 7.3 "derived expression types"
+        // http://www.schemers.org/Documents/Standards/R5RS/HTML/
+        let lang = load_lang("src/examples/r5rs.scope");
+
+        // (Let*)
+        // child 1: bindings
+        // child 2: body
+        let ref rule = lang.surf_scope.rules["Letstar"];
+        assert_eq!(rule.iter().count(), 3);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "bind 1 in 2;"));
+
+        // (Let* binding)
+        // child 1: name
+        // child 2: defintion
+        // child 3: rest of binding list
+        let ref rule = lang.surf_scope.rules["LetstarBind"];
+        assert_eq!(rule.iter().count(), 7);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "import 3;"));
+        assert!(has_fact(rule, "bind 1 in 3;"));
+        assert!(has_fact(rule, "export 1;"));
+        assert!(has_fact(rule, "export 3;"));
+
+        // (Letrec)
+        // child 1: bindings
+        // child 2: body
+        let ref rule = lang.surf_scope.rules["Letrec"];
+        assert_eq!(rule.iter().count(), 3);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "bind 1 in 2;"));
+        
+        // (Regular Let)
+        // child 1: bindings
+        // child 2: body
+        let ref rule = lang.surf_scope.rules["Let"];
+        assert_eq!(rule.iter().count(), 3);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "bind 1 in 2;"));
+
+        // (Regular Let binding)
+        // child 1: name
+        // child 2: defintion
+        // child 3: rest of binding list
+        let ref rule = lang.surf_scope.rules["Bind"];
+        assert_eq!(rule.iter().count(), 5);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "import 3;"));
+        assert!(has_fact(rule, "export 1;"));
+        assert!(has_fact(rule, "export 3;"));
+        
+        // ("Named" Let loop)
         // child 1: tag
         // child 2: bindings
         // child 3: body
-        let ref named_let_rule = lang.surf_scope.rules["NamedLet"];
-        assert_eq!(named_let_rule.iter().count(), 6);
-        assert!(has_fact(named_let_rule, "import 1;"));
-        assert!(has_fact(named_let_rule, "import 2;"));
-        assert!(has_fact(named_let_rule, "import 3;"));
-        assert!(has_fact(named_let_rule, "bind 1 in 2;"));
-        assert!(has_fact(named_let_rule, "bind 2 in 3;"));
-        assert!(has_fact(named_let_rule, "bind 1 in 3;"));
+        let ref rule = lang.surf_scope.rules["NamedLet"];
+        assert_eq!(rule.iter().count(), 7);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "import 3;"));
+        // [TODO]: Small mistake in the paper. Need to draw this arrow 1->1.
+        //         It's meaning is that if 1 contains *multiple* decls,
+        //         they must all be disjoint. This follows from its desugaring.
+        assert!(has_fact(rule, "bind 1 in 1;"));
+        assert!(has_fact(rule, "bind 1 in 2;"));
+        assert!(has_fact(rule, "bind 2 in 3;"));
+        assert!(has_fact(rule, "bind 1 in 3;"));
 
         // ("Named" Let binding)
         // child 1: name
         // child 2: definition
         // child 3: rest of binding list
-        let ref bind_rule = lang.surf_scope.rules["NamedLetBind"];
-        assert_eq!(bind_rule.iter().count(), 5);
-        assert!(has_fact(bind_rule, "import 1;"));
-        assert!(has_fact(bind_rule, "import 2;"));
-        assert!(has_fact(bind_rule, "import 3;"));
-        assert!(has_fact(bind_rule, "export 1;"));
-        assert!(has_fact(bind_rule, "export 3;"));
+        let ref rule = lang.surf_scope.rules["NamedLetBind"];
+        assert_eq!(rule.iter().count(), 5);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "import 3;"));
+        assert!(has_fact(rule, "export 1;"));
+        assert!(has_fact(rule, "export 3;"));
     }
 
     #[test]
     fn example_list_comprehension() {
+        // See Haskell Standard, section 3.11: List Comprehensions
+        // https://www.haskell.org/onlinereport/derived.html
         let lang = load_lang("src/examples/list_comprehension.scope");
 
         // [ e | Q ]
         //   1   2
-        // See Haskell Standard, section 3.11: List Comprehensions
         let ref rule = lang.surf_scope.rules["ListCompr"];
         assert_eq!(rule.iter().count(), 3);
         assert!(has_fact(rule, "import 1;"));

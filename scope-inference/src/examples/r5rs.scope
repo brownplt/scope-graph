@@ -36,12 +36,9 @@ language R5RS {
 
 
   (* Regular (parallel) Let *)
-  
-  (Let binds body) {
-    import 1;
-    import 2;
-    bind 1 in 2;
-  }
+
+  (* `bind 1 in 3` and `bind 3 in 1` needed to infer scope for letrec. *)
+  (* (letrec needs a preorder; `let` otherwise gives a partial order.)  *)
   (LetBind name defn binds) {
     import 1;
     import 2;
@@ -67,9 +64,12 @@ language R5RS {
     import 2;
     import 3;
   }
-  
+
 
   (* Sugars *)
+
+  sugar (Let binds body)
+  sugar (Bind var init binds)
 
   sugar (Letstar binds body)
   sugar (LetstarBind var init binds)
@@ -79,11 +79,13 @@ language R5RS {
 
   sugar (NamedLet proc_id binds body)
   sugar (NamedLetBind arg_id init_expr binds)
-  
+
+(*
   sugar (Do binds test body)
   sugar (DoBindStep var init step binds)
-  sugar (DoBind var init binds)  (* If 'step...' is empty *)
+  sugar (DoBind var init binds)
   sugar (DoTest test expr)
+*)
 
 
   (* Letstar *)
@@ -97,8 +99,13 @@ language R5RS {
 
   (* Letrec *)
 
-  rule (Letrec binds body)
-    => (DesugarLetrec (ReverseLetrecBinds binds (End)) (End) (End) body)
+  (* One or more bindings *)
+  rule (Letrec (LetrecBind var init binds) body)
+    => (DesugarLetrec (ReverseLetrecBinds (LetrecBind var init binds) (End)) (End) (End) body)
+
+  (* No bindings *)
+  rule (Letrec (End) body)
+    => (DesugarLetrec (ReverseLetrecBinds (End) (End)) (End) (End) body)
 
   (* One or more bindings *)
   rule (DesugarLetrec (End) (LetBind a b undef_binds) (LetBind c d init_binds) body)
@@ -139,16 +146,27 @@ language R5RS {
            (Set as_refn$x $alpha (Set as_refn$y $beta body))))
 
 
+  (* Regular Let *)
+
+  rule (Let binds body)
+    => (DesugarLet binds body (End) (End))
+
+  rule (DesugarLet (Bind x defn binds) body params args)
+    => (DesugarLet binds body (AppendParam x params) (AppendArg defn args))
+
+  rule (DesugarLet (End) body params args)
+    => (Apply (Lambda params body) args)
+
+
   (* Named Let *)
 
   rule (NamedLet proc_id binds body)
     => (DesugarNamedLet proc_id binds body (End) (End))
 
   rule (DesugarNamedLet proc_id (End) body params args)
-    => (Apply (Letrec
-         (Letrecbind proc_id (Lambda params body) (End))
-         as_refn$proc_id)
-         args)
+    => (Letrec
+         (LetrecBind proc_id (Lambda params body) (End))
+         (Apply as_refn$proc_id args))
 
   rule (DesugarNamedLet proc_id (NamedLetBind arg_id init_expr binds) body params args)
     => (DesugarNamedLet proc_id binds body (AppendParam arg_id params) (AppendArg init_expr args))
