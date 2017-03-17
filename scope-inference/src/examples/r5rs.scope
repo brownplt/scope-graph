@@ -35,19 +35,7 @@ language R5RS {
   }
 
 
-  (* Regular (parallel) Let *)
-
-  (* `bind 1 in 3` and `bind 3 in 1` needed to infer scope for letrec. *)
-  (* (letrec needs a preorder; `let` otherwise gives a partial order.)  *)
-  (LetBind name defn binds) {
-    import 1;
-    import 2;
-    import 3;
-    export 1;
-    export 3;
-    bind 1 in 3;
-    bind 3 in 1;
-  }
+  (* Set *)
   
   (Set var defn stmts) {
     import 1;
@@ -66,16 +54,76 @@ language R5RS {
   }
 
 
+  (* TEMP *)
+(*
+  (Let a b) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+
+  (LetBind a b c) {
+    import 1;
+    import 2;
+    import 3;
+    export 1;
+    export 3;
+  }
+
+  (Letstar a b) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+
+  (Letrec a b) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+
+  (LetstarBind var init binds) {
+    import 1;
+    import 2;
+    import 3;
+    bind 1 in 3;
+    export 1;
+    export 3;
+  }
+
+  (LetrecBind var init binds) {
+    import 1;
+    import 2;
+    import 3;
+    export 1;
+    export 3;
+    bind 1 in 3;
+    bind 3 in 1;
+    bind 1 in 2;
+    bind 3 in 2;
+  }
+
+  (DesugarLet binds body params args) {
+    import 1;
+    import 2;
+    import 3;
+    import 4;
+    bind 1 in 2;
+    bind 3 in 2;
+  }
+*)
+
   (* Sugars *)
 
   sugar (Let binds body)
-  sugar (Bind var init binds)
+  sugar (LetBind var init binds)
 
   sugar (Letstar binds body)
   sugar (LetstarBind var init binds)
 
   sugar (Letrec binds body)
   sugar (LetrecBind var init binds)
+(*   with var, init disjoint *)
 
   sugar (NamedLet proc_id binds body)
   sugar (NamedLetBind arg_id init_expr binds)
@@ -87,6 +135,17 @@ language R5RS {
   sugar (DoTest test expr)
 *)
 
+  (* Regular Let *)
+
+  rule (Let binds body)
+    => (DesugarLet binds body (End) (End))
+
+  rule (DesugarLet (LetBind x defn binds) body params args)
+    => (DesugarLet binds body (AppendParam x params) (AppendArg defn args))
+
+  rule (DesugarLet (End) body params args)
+    => (Apply (Lambda params body) args)
+
 
   (* Letstar *)
 
@@ -97,43 +156,27 @@ language R5RS {
     => (Let (LetBind id init (end))
          (Letstar binds body))
 
+
   (* Letrec *)
 
-  (* One or more bindings *)
-  rule (Letrec (LetrecBind var init binds) body)
-    => (DesugarLetrec (ReverseLetrecBinds (LetrecBind var init binds) (End)) (End) (End) body)
+  rule (Letrec binds body)
+    => (WrapLetrec (DsLetrec binds body))
 
-  (* No bindings *)
-  rule (Letrec (End) body)
-    => (DesugarLetrec (ReverseLetrecBinds (End) (End)) (End) (End) body)
+  rule (DsLetrec (LetrecBind var init binds) body)
+    => (LetrecBind var init (DsLetrec binds body))
 
-  (* One or more bindings *)
-  rule (DesugarLetrec (End) (LetBind a b undef_binds) (LetBind c d init_binds) body)
-    => (Let (LetBind a b undef_binds) (Let (LetBind c d init_binds) body))
+  rule (DsLetrec (End) body)
+    => (DsLetrecBinds (End) (End) body)
 
-  (* No bindings *)
-  rule (DesugarLetrec (End) (End) (End) body)
-    => (Let (End) (Let (End) body))
-
-  rule (DesugarLetrec
-         (LetrecBind var init binds)
-         undef_binds
-         init_binds
-         body)
-    => (DesugarLetrec
-         binds
-         (LetBind var (Void) undef_binds)
-         (LetBind @x init init_binds)
+  rule (LetrecBind var init
+         (DsLetrecBinds undef_binds init_binds body))
+    => (DsLetrecBinds
+         (LetstarBind var (Void) undef_binds)
+         (LetstarBind @x init init_binds)
          (Set as_refn$var $x body))
 
-  rule (ReverseLetrecBinds (End) (End))
-    => (End)
-
-  rule (ReverseLetrecBinds (End) (LetrecBind id init binds))
-    => (LetrecBind id init binds)
-
-  rule (ReverseLetrecBinds (LetrecBind id init binds) reversed)
-    => (ReverseLetrecBinds binds (LetrecBind id init reversed))
+  rule (WrapLetrec (DsLetrecBinds undef_binds init_binds body))
+    => (Letstar undef_binds (Letstar init_binds body))
 
 
   (* Sanity Check: Make sure that Letrec has the same binding
@@ -141,22 +184,9 @@ language R5RS {
      case of two bindings (below). *)
 
   rule (Letrec (LetrecBind x a (LetrecBind y b (End))) body)
-    => (Let (LetBind x (Void) (LetBind y (Void) (End)))
-         (Let (LetBind @alpha a (LetBind @beta b (End)))
+    => (Letstar (LetstarBind x (Void) (LetstarBind y (Void) (End)))
+         (Letstar (LetstarBind @alpha a (LetstarBind @beta b (End)))
            (Set as_refn$x $alpha (Set as_refn$y $beta body))))
-
-
-  (* Regular Let *)
-
-  rule (Let binds body)
-    => (DesugarLet binds body (End) (End))
-
-  rule (DesugarLet (Bind x defn binds) body params args)
-    => (DesugarLet binds body (AppendParam x params) (AppendArg defn args))
-
-  rule (DesugarLet (End) body params args)
-    => (Apply (Lambda params body) args)
-
 
   (* Named Let *)
 
@@ -172,7 +202,36 @@ language R5RS {
     => (DesugarNamedLet proc_id binds body (AppendParam arg_id params) (AppendArg init_expr args))
 
 
+
+
   (* Do *)
+(*
+  rule (Do binds test commands)
+    => (WrapDo (DsDo binds test commands))
+
+  rule (DsDo (DoBind var init binds) test commands)
+    => (DoBind var init (DsDo binds test commands))
+
+  rule (DsDo (DoBindStep var init step binds) test commands)
+    => (DoBindStep var init step (DsDo binds test commands))
+
+  rule (DsDo (End) test commands)
+    => (DsDoBinds test commands (End) (End) (End))
+
+  rule (DoBind var init (DsDoBinds test commands inits vars steps))
+    => (DsDoBinds test commands (Arg init inits) (Param var vars) (Arg as_refn$var steps))
+
+  rule (DoBindStep var init step (DsDoBinds test commands inits vars steps))
+    => (DsDoBinds test commands (Arg init inits) (Param var vars) (Arg step steps))
+
+  rule (WrapDo (DsDoBinds (DoTest test exprs) commands inits vars steps))
+    => (Letrec (LetrecBind @loop
+         (Lambda vars
+           (If test
+             (Begin (Void) exprs)
+             (Begin commands (Apply $loop steps)))))
+         (Apply $loop inits))
+*)
 
 (* The obvious desugaring doesn't work, and infers (among other things)
    that the variables are bound in the `init` expressions. *)
@@ -194,7 +253,7 @@ language R5RS {
          (AppendArg step steps))
 
   rule (DesugarDo (End) (DoTest test exprs) commands (Arg a inits) (Param b vars) (Arg c steps))
-    => (Letrec (Bindrec @loop
+    => (Letrec (LetrecBind @loop
          (Lambda (Param b vars)
            (If test
              (Begin (Void) exprs)

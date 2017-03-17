@@ -129,7 +129,7 @@ mod tests {
         // child 2: defintion
         // child 3: rest of binding list
         let ref rule = lang.surf_scope.rules["LetstarBind"];
-        assert_eq!(rule.iter().count(), 7);
+        assert_eq!(rule.iter().count(), 6);
         assert!(has_fact(rule, "import 1;"));
         assert!(has_fact(rule, "import 2;"));
         assert!(has_fact(rule, "import 3;"));
@@ -146,6 +146,21 @@ mod tests {
         assert!(has_fact(rule, "import 2;"));
         assert!(has_fact(rule, "bind 1 in 2;"));
         
+        // (Letrec binding)
+        // child 1: name
+        // child 2: defintion
+        // child 3: rest of binding list
+        let ref rule = lang.surf_scope.rules["LetrecBind"];
+        assert_eq!(rule.iter().count(), 8);
+        assert!(has_fact(rule, "import 1;"));
+        assert!(has_fact(rule, "import 2;"));
+        assert!(has_fact(rule, "import 3;"));
+        assert!(has_fact(rule, "export 1;"));
+        assert!(has_fact(rule, "export 3;"));
+        assert!(has_fact(rule, "bind 1 in 2;"));
+        assert!(has_fact(rule, "bind 3 in 2;"));
+        assert!(has_fact(rule, "bind 1 in 3;"));
+        
         // (Regular Let)
         // child 1: bindings
         // child 2: body
@@ -159,7 +174,7 @@ mod tests {
         // child 1: name
         // child 2: defintion
         // child 3: rest of binding list
-        let ref rule = lang.surf_scope.rules["Bind"];
+        let ref rule = lang.surf_scope.rules["LetBind"];
         assert_eq!(rule.iter().count(), 5);
         assert!(has_fact(rule, "import 1;"));
         assert!(has_fact(rule, "import 2;"));
@@ -172,14 +187,10 @@ mod tests {
         // child 2: bindings
         // child 3: body
         let ref rule = lang.surf_scope.rules["NamedLet"];
-        assert_eq!(rule.iter().count(), 7);
+        assert_eq!(rule.iter().count(), 6);
         assert!(has_fact(rule, "import 1;"));
         assert!(has_fact(rule, "import 2;"));
         assert!(has_fact(rule, "import 3;"));
-        // [TODO]: Small mistake in the paper. Need to draw this arrow 1->1.
-        //         It's meaning is that if 1 contains *multiple* decls,
-        //         they must all be disjoint. This follows from its desugaring.
-        assert!(has_fact(rule, "bind 1 in 1;"));
         assert!(has_fact(rule, "bind 1 in 2;"));
         assert!(has_fact(rule, "bind 2 in 3;"));
         assert!(has_fact(rule, "bind 1 in 3;"));
