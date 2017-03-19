@@ -1,0 +1,34 @@
+language Test {
+  (Lambda param body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (Apply func arg) {
+    import 1;
+    import 2;
+  }
+  (Begin body) {
+    import 1;
+  }
+  (Void) {}
+  
+  sugar (Let binds body)
+  sugar (Bind name defn binds) {
+    disjoint bind name in binds;
+  }
+  sugar (EndBinds)
+
+  sugar (TestDisjoint)
+
+  (* Desugars like let-star, but requires distinct names *)
+
+  rule (Let (Bind a b c) d)
+    => (Apply (Lambda a (Let c d)) b)
+  
+  rule (Let (EndBinds) a)
+    => (Begin a)
+
+  rule (TestDisjoint)
+    => (Let (Bind @same_var (Void) (Bind @same_var (Void) (EndBinds))) (Void))
+}

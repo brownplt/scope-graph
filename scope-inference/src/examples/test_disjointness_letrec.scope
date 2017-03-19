@@ -71,12 +71,6 @@ language R5RS {
   sugar (NamedLet proc_id binds body)
   sugar (NamedLetBind arg_id init_expr binds)
 
-(*
-  sugar (Do binds test body)
-  sugar (DoBindStep var init step binds)
-  sugar (DoBind var init binds)
-  sugar (DoTest test expr)
-*)
 
   (* Regular Let *)
 
@@ -131,82 +125,9 @@ language R5RS {
          (Letstar (LetstarBind @alpha a (LetstarBind @beta b (End)))
            (Set as_refn$x $alpha (Set as_refn$y $beta body))))
 
-  (* Test disjointness requirement: replacing "@y" with "@x" gives a disjointness error. *)
+  (* Test disjointness requirement *)
   rule (TestDisj)
-    => (Letrec (LetrecBind @x (Void) (LetrecBind @y (Void) (End))))
-
-  (* Named Let *)
-
-  rule (NamedLet proc_id binds body)
-    => (DesugarNamedLet proc_id binds body (End) (End))
-
-  rule (DesugarNamedLet proc_id (End) body params args)
-    => (Letrec
-         (LetrecBind proc_id (Lambda params body) (End))
-         (Apply as_refn$proc_id args))
-
-  rule (DesugarNamedLet proc_id (NamedLetBind arg_id init_expr binds) body params args)
-    => (DesugarNamedLet proc_id binds body (AppendParam arg_id params) (AppendArg init_expr args))
-
-
-
-
-  (* Do *)
-(*
-  rule (Do binds test commands)
-    => (WrapDo (DsDo binds test commands))
-
-  rule (DsDo (DoBind var init binds) test commands)
-    => (DoBind var init (DsDo binds test commands))
-
-  rule (DsDo (DoBindStep var init step binds) test commands)
-    => (DoBindStep var init step (DsDo binds test commands))
-
-  rule (DsDo (End) test commands)
-    => (DsDoBinds test commands (End) (End) (End))
-
-  rule (DoBind var init (DsDoBinds test commands inits vars steps))
-    => (DsDoBinds test commands (Arg init inits) (Param var vars) (Arg as_refn$var steps))
-
-  rule (DoBindStep var init step (DsDoBinds test commands inits vars steps))
-    => (DsDoBinds test commands (Arg init inits) (Param var vars) (Arg step steps))
-
-  rule (WrapDo (DsDoBinds (DoTest test exprs) commands inits vars steps))
-    => (Letrec (LetrecBind @loop
-         (Lambda vars
-           (If test
-             (Begin (Void) exprs)
-             (Begin commands (Apply $loop steps)))))
-         (Apply $loop inits))
-*)
-
-(* The obvious desugaring doesn't work, and infers (among other things)
-   that the variables are bound in the `init` expressions. *)
-
-(*
-  rule (Do binds test commands)
-    => (DesugarDo binds test commands (End) (End) (End))
-
-  rule (DesugarDo (DoBind var init binds) test commands inits vars steps)
-    => (DesugarDo binds test commands
-         (AppendArg init inits)
-         (AppendParam var vars)
-         (AppendArg as_refn$var steps))
-
-  rule (DesugarDo (DoBindStep var init step binds) test commands inits vars steps)
-    => (DesugarDo binds test commands
-         (AppendArg init inits)
-         (AppendParam var vars)
-         (AppendArg step steps))
-
-  rule (DesugarDo (End) (DoTest test exprs) commands (Arg a inits) (Param b vars) (Arg c steps))
-    => (Letrec (LetrecBind @loop
-         (Lambda (Param b vars)
-           (If test
-             (Begin (Void) exprs)
-             (Begin commands (Apply $loop (Arg c steps))))))
-         (Apply $loop (Arg a inits)))
-*)
+    => (Letrec (LetrecBind @x (Void) (LetrecBind @x (Void) (End))))
 
 
   (* Helpers *)

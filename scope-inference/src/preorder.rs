@@ -115,6 +115,33 @@ impl IndexMut<Edge> for Preorder {
 }
 
 impl Preorder {
+    pub fn from_facts(arity: usize, facts: Vec<Lt>) -> Preorder {
+        // Scope Rule Axiom 1/3 (transitivity): guaranteed by Preorder.
+        let mut order = Preorder::new_non_reflexive(arity + 2);
+        for fact in facts.into_iter() {
+            // Scope Rule Axiom 2/3
+            if fact.right == Exp {
+                panic!("Cannot import bindings from {}", Exp)
+            }
+            // Scope Rule Axiom 3/3
+            if fact.left == Imp {
+                panic!("Cannot export bindings from {}", Imp)
+            }
+            if let Child(i) = fact.left {
+                if i > arity {
+                    panic!("Child {} is out of bounds; this rule has arity {}", fact.left, arity);
+                }
+            }
+            if let Child(j) = fact.right {
+                if j > arity {
+                    panic!("Child {} is out of bounds; this rule has arity {}", fact.right, arity);
+                }
+            }
+            order.insert(fact);
+        }
+        order
+    }
+
     // Used by rules: closed under transitivity, but not reflexivity.
     pub fn new_non_reflexive(size: usize) -> Preorder {
         let mut order = Vec::with_capacity(size);

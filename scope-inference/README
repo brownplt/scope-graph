@@ -38,6 +38,13 @@ The scoping rules have a friendlier format than what is given in the paper. The 
     "bind i in j"  means  "j  ⋖  i "
 
 
+### Extra Features ###
+
+The implementation has one feature not mentioned in the paper: when
+declaring a sugar, you can require that some of its variables be
+disjoint. Usually this isn't necessary, because it can be inferred,
+but it's needed for `letrec`.
+
 
 ### Files ###
 

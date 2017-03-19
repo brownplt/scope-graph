@@ -52,6 +52,18 @@ mod tests {
     fn hole_as_refn_check_unbound() {
         load_lang("src/examples/test_hole_as_refn_check_unbound.scope");
     }
+
+    #[test]
+    #[should_panic(expected = "")]
+    fn check_disjoint() {
+        load_lang("src/examples/test_disjointness.scope");
+    }
+
+    #[test]
+    #[should_panic(expected = "")]
+    fn check_disjoint_letrec() {
+        load_lang("src/examples/test_disjointness_letrec.scope");
+    }
     
     #[test]
     fn binding() {

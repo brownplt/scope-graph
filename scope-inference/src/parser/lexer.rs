@@ -21,6 +21,7 @@ pub enum Token {
     In,
     Import,
     Export,
+    Disjoint,
     // Desugaring Rules
     Rule,
     Arrow,
@@ -41,7 +42,7 @@ fn make_matcher(token: Token, regex: &str) -> (Token, Regex) {
 }
 
 lazy_static! {
-    static ref MATCHERS: [(Token, Regex); 20] = [
+    static ref MATCHERS: [(Token, Regex); 21] = [
         make_matcher(Language, "language\\b"),
         make_matcher(Semicolon, ";"),
         make_matcher(LBrace  , "\\{"),
@@ -56,6 +57,7 @@ lazy_static! {
         make_matcher(In      , "in\\b"),
         make_matcher(Import  , "import\\b"),
         make_matcher(Export  , "export\\b"),
+        make_matcher(Disjoint, "disjoint\\b"),
         make_matcher(DeclMark, "@"),
         make_matcher(RefnMark, "\\$"),
         make_matcher(GlobalMark, "global\\$"),
@@ -83,6 +85,7 @@ impl fmt::Display for Token {
             In       => write!(f, "in"),
             Import   => write!(f, "import"),
             Export   => write!(f, "export"),
+            Disjoint => write!(f, "disjoint"),
             DeclMark => write!(f, "@"),
             RefnMark => write!(f, "$"),
             GlobalMark => write!(f, "global$"),

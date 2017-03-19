@@ -135,7 +135,7 @@ pub fn resolve_hole_order<Val>(scope: &ScopeRules, term: &Term<Val>)
     order
 }
 
-fn resolve_scope<Val>(scope: &ScopeRules, term: &Term<Val>)
+pub fn resolve_scope<Val>(scope: &ScopeRules, term: &Term<Val>)
                           -> HashSet<Lt>
     where Val : fmt::Display
 {
@@ -152,6 +152,20 @@ fn resolve_scope<Val>(scope: &ScopeRules, term: &Term<Val>)
         }
     }
     order
+}
+
+// Determine weather one variable (or hole) in a term is required to be disjoint from another,
+// given a set of scoping rules.
+pub fn resolve_disj<Val>(scope: &ScopeRules, term: &Term<Val>, var1: &[usize], var2: &[usize]) -> bool
+    where Val : fmt::Display
+{
+    let conj = gen_conj(term, var1, var2);
+    for ref fact in conj.iter() {
+        if !scope.disjoint(fact) {
+            return false;
+        }
+    }
+    true
 }
 
 // Determine weather one variable (or hole) in a term is less than other,

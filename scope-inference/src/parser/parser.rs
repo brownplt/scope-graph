@@ -208,6 +208,18 @@ impl<'s> Parser<'s> {
         
         Ok(fact)
     }
+
+    fn parse_disj_fact(&mut self) -> Result<Lt, ()>
+    {
+        try!(self.parse_token(Token::Disjoint));
+        let fact = try!(Err(())
+            .or_else(|_| self.parse_fact_import())
+            .or_else(|_| self.parse_fact_export())
+            .or_else(|_| self.parse_fact_sibling()));
+        let _semi = self.parse_token(Token::Semicolon);
+        self.check("Semicolon", _semi);
+        Ok(fact)
+    }
     
     fn parse_header(&mut self) -> Result<(Node, Vec<String>), ()> {
         try!(self.parse_token(Token::LParen));
@@ -237,7 +249,7 @@ impl<'s> Parser<'s> {
         }
         
         let _rb = self.parse_token(Token::RBrace);
-        self.check("Left brace", _rb);
+        self.check("Right brace", _rb);
         
         Ok(ScopeRule::new_core(node, args, facts))
     }
@@ -246,7 +258,20 @@ impl<'s> Parser<'s> {
         try!(self.parse_token(Token::Sugar));
         let _header = self.parse_header();
         let (node, args) = self.check("Sugar declaration", _header);
-        Ok(ScopeRule::new_surface(node, args))
+
+        if let Ok(_) = self.parse_token(Token::LBrace) {
+            let mut disjs = vec!();
+            while let Ok(disj) = self.parse_disj_fact() {
+                disjs.push(disj);
+            }
+            
+            let _rb = self.parse_token(Token::RBrace);
+            self.check("Right brace", _rb);
+            
+            Ok(ScopeRule::new_surface(node, args, disjs))
+        } else {
+            Ok(ScopeRule::new_surface(node, args, vec!()))
+        }
     }
 
     pub fn parse_language<Val>(&mut self) -> Result<Language<Val>, ()> {

@@ -8,7 +8,7 @@ use rule::{Fact, Conj, ScopeRules, Language};
 use term::{RewriteRule, Term, Name};
 use term::Term::*;
 use resolve;
-use resolve::{resolve_hole_order, resolve_bindings, resolve_lt};
+use resolve::{resolve_hole_order, resolve_bindings, resolve_lt, resolve_disj};
 
 
 
@@ -272,6 +272,21 @@ fn check_scope<Val>(scope: &ScopeRules,
                        refn, rule);
             }
         }
+        // Check that introduced variables have distinct names when required to.
+        let vars = rule.right.vars();
+        for x in vars.iter() {
+            for y in vars.iter() {
+                if x != y && resolve_disj(scope, &rule.right, x, y) {
+                    if let (&Decl(ref a), &Decl(ref b)) = (&rule.right[x], &rule.right[y]) {
+                        if a == b {
+                            panic!("The variable declarations {} are required to have distinct names in the right hand side of the rule:\n{}",
+                                   rule.right[x], rule);
+                        }
+                    }
+                }
+            }
+        }
+
         // Check that `as_refn$x` holes are always in scope of their hole.
         let holes = rule.right.holes();
         let hole_as_refns = rule.right.hole_as_refns();

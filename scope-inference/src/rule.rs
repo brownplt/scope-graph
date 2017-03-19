@@ -3,7 +3,6 @@ use std::collections::{HashSet, HashMap};
 use std::ops::Index;
 
 use preorder::{Elem, Lt, Preorder};
-use preorder::Elem::{Imp, Exp, Child};
 use term::{Term, RewriteRule};
 
 pub use term::Node;
@@ -16,7 +15,8 @@ pub struct ScopeRule {
     args: Vec<String>,
     kind: Kind,
     implicit: bool,
-    order: Preorder
+    order: Preorder,
+    disjs: Preorder
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -39,12 +39,12 @@ impl fmt::Display for ScopeRule {
 impl ScopeRule {
     pub fn new_core(node: Node, args: Vec<String>, facts: Vec<Lt>) -> ScopeRule
     {
-        ScopeRule::make(node, args, facts, Kind::Core, false)
+        ScopeRule::make(node, args, facts, vec!(), Kind::Core, false)
     }
 
-    pub fn new_surface(node: Node, args: Vec<String>) -> ScopeRule
+    pub fn new_surface(node: Node, args: Vec<String>, disjs: Vec<Lt>) -> ScopeRule
     {
-        ScopeRule::make(node, args, vec!(), Kind::Surface, false)
+        ScopeRule::make(node, args, vec!(), disjs, Kind::Surface, false)
     }
 
     fn new_implicit(node: Node, arity: usize) -> ScopeRule
@@ -53,42 +53,20 @@ impl ScopeRule {
         for i in 1 .. arity + 1 {
             args.push(format!("{}", i));
         }
-        ScopeRule::make(node, args, vec!(), Kind::Surface, true)
+        ScopeRule::make(node, args, vec!(), vec!(), Kind::Surface, true)
     }
     
-    fn make(node: Node, args: Vec<String>, facts: Vec<Lt>, kind: Kind, implicit: bool)
+    fn make(node: Node, args: Vec<String>, facts: Vec<Lt>, disjs: Vec<Lt>, kind: Kind, implicit: bool)
             -> ScopeRule
     {
         let arity = args.len();
-        // Scope Rule Axiom 1/4 (transitivity): guaranteed by Preorder.
-        let mut order = Preorder::new_non_reflexive(arity + 2);
-        for fact in facts.into_iter() {
-            // Scope Rule Axiom 2/4
-            if fact.right == Exp {
-                panic!("Cannot import bindings from {}", Exp)
-            }
-            // Scope Rule Axiom 3/4
-            if fact.left == Imp {
-                panic!("Cannot export bindings from {}", Imp)
-            }
-            if let Child(i) = fact.left {
-                if i > arity {
-                    panic!("Child {} is out of bounds; this rule has arity {}", fact.left, arity);
-                }
-            }
-            if let Child(j) = fact.right {
-                if j > arity {
-                    panic!("Child {} is out of bounds; this rule has arity {}", fact.right, arity);
-                }
-            }
-            order.insert(fact);
-        }
-        // Scope Rule Axiom 4/4
-        order.insert(Lt::new(Exp, Imp));
+        let order = Preorder::from_facts(arity, facts);
+        let disj_order = Preorder::from_facts(arity, disjs);
         ScopeRule{
             node: node,
             args: args,
             order: order,
+            disjs: disj_order,
             kind: kind,
             implicit: implicit
         }
@@ -109,6 +87,11 @@ impl ScopeRule {
     pub fn lt(&self, left: Elem, right: Elem) -> bool {
         let lt = Lt::new(left, right);
         self.order.contains(lt)
+    }
+    
+    pub fn disj(&self, left: Elem, right: Elem) -> bool {
+        let lt = Lt::new(left, right);
+        self.disjs.contains(lt)
     }
 
     pub fn implicit(&self) -> bool {
@@ -190,6 +173,13 @@ impl ScopeRules {
         match self.rules.get(&fact.node) {
             None => false,
             Some(rule) => rule.lt(fact.left, fact.right)
+        }
+    }
+
+    pub fn disjoint(&self, fact: &Fact) -> bool {
+        match self.rules.get(&fact.node) {
+            None => false,
+            Some(rule) => rule.disj(fact.left, fact.right)
         }
     }
 

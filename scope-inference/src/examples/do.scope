@@ -1,0 +1,188 @@
+language Do {
+
+
+  (* Functions *)
+  
+  (Lambda param body) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+  (Param name params) {
+    import 1;
+    import 2;
+    export 1;
+    export 2;
+  }
+  (End) {}
+  
+  (Apply func args) {
+    import 1;
+    import 2;
+  }
+  (Arg arg args) {
+    import 1;
+    import 2;
+  }
+
+
+  (* Multiple bodies *)
+
+  (Void) {}
+  (Begin expr rest) {
+    import 1;
+    import 2;
+  }
+
+
+  (* Set *)
+  
+  (Set var defn stmts) {
+    import 1;
+    import 2;
+    import 3;
+    export 3;
+  }
+
+
+  (* Conditionals *)
+
+  (If cond consq altern) {
+    import 1;
+    import 2;
+    import 3;
+  }
+
+
+  (* TEMP *)
+
+  (Let a b) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+
+  (LetBind a b c) {
+    import 1;
+    import 2;
+    import 3;
+    export 1;
+    export 3;
+  }
+
+  (Letstar a b) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+
+  (Letrec a b) {
+    import 1;
+    import 2;
+    bind 1 in 2;
+  }
+
+  (LetstarBind var init binds) {
+    import 1;
+    import 2;
+    import 3;
+    bind 1 in 3;
+    export 1;
+    export 3;
+  }
+
+  (LetrecBind var init binds) {
+    import 1;
+    import 2;
+    import 3;
+    export 1;
+    export 3;
+    bind 1 in 3;
+    bind 3 in 1;
+    bind 1 in 2;
+    bind 3 in 2;
+  }
+
+
+  sugar (Do binds test body)
+  sugar (DoBindStep var init step binds)
+  sugar (DoBind var init binds)
+  sugar (DoTest test expr)
+
+
+  rule (Do binds test commands)
+    => (WrapDo (DsDo binds test commands))
+
+  rule (DsDo (DoBind var init binds) test commands)
+    => (DoBind var init (DsDo binds test commands))
+
+  rule (DsDo (DoBindStep var init step binds) test commands)
+    => (DoBindStep var init step (DsDo binds test commands))
+
+  rule (DsDo (End) test commands)
+    => (DsDoBinds test commands (End) (End) (End))
+
+  rule (DoBind var init (DsDoBinds test commands inits vars steps))
+    => (DsDoBinds test commands (Arg init inits) (Param var vars) (Arg as_refn$var steps))
+
+  rule (DoBindStep var init step (DsDoBinds test commands inits vars steps))
+    => (DsDoBinds test commands (Arg init inits) (Param var vars) (Arg step steps))
+
+  rule (WrapDo (DsDoBinds (DoTest test exprs) commands inits vars steps))
+    => (Letrec (LetrecBind @loop
+         (Lambda vars
+           (If test
+             (Begin (Void) exprs)
+             (Begin commands (Apply $loop steps)))))
+         (Apply $loop inits))
+
+(*
+(Do (DoBind @sum 0 (DoBindStep i 0 (+ i 1) (End)))
+    ((= i 3) display)
+    (set! sum (+ sum (read-line))))
+
+(WrapDo
+  (DsDo (DoBind @sum 0 (DoBindStep i 0 (+ i 1) (End)))
+        ((= i 3) display)
+        (set! sum (+ sum (read-line)))))
+
+(DoBind @sum 0
+  (DsDo (DoBindStep i 0 (+ i 1) (End))
+        ((= i 3) display)
+        (set! sum (+ sum (read-line)))))
+
+(DoBind @sum 0
+  (DoBindStep i 0 (+ i 1)
+    (DsDo (End)
+          ((= i 3) display)
+          (set! sum (+ sum (read-line))))))
+
+(DoBind @sum 0
+  (DoBindStep i 0 (+ i 1)
+    (DsDoBinds
+      ((= i 3) display)
+      (set! sum (+ sum (read-line)))
+      (End) (End) (End))))
+
+(DoBind @sum 0
+  (DsDoBinds
+    ((= i 3) display)
+    (set! sum (+ sum (read-line)))
+    (Arg 0 (End)) (Param i (End)) (Arg (+ i 1) (End)))
+
+(DsDoBinds
+  ((= i 3) display)
+  (set! sum (+ sum (read-line)))
+  (Arg 0 (Arg 0 (End)))
+  (Param @sum (Param @i (End)))
+  (Arg $sum (Arg (+ i 1) (End))))
+
+(Letrec (LetrecBind @loop
+  (Lambda @sum @i
+    (If (= i 3)
+      display
+      (Begin (set! sum (+ sum (read-line))) (Apply $loop $sum (+ i 1))))))
+  (Apply $loop 0 0))
+*)
+
+}
