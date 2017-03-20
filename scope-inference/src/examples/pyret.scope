@@ -140,8 +140,8 @@ language Pyret {
 
   (* For loops *)
 
-(*  rule (Data name params mixins variants shared)
-    => (DataExpr name $a params mixins variants shared) *)
+  rule (Data name params mixins variants shared)
+    => (DataExpr name @a params mixins variants shared)
 
   rule (For iter binds body)
     => (DesugarFor iter binds (End) (End) body)

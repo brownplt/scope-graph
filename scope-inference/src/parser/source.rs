@@ -161,6 +161,14 @@ impl SourceFile {
         Ok(SourceFile::new(filename, contents))
     }
 
+    pub fn open_stdin() -> Result<SourceFile, io::Error> {
+        let mut contents = String::new();
+        while let Ok(n) = io::stdin().read_line(&mut contents) {
+            if n == 0 { break; }
+        }
+        Ok(SourceFile::new(String::from("stdin"), contents))
+    }
+
     pub fn new(filename: String, text: String) -> SourceFile {
         let mut split = 0;
         let mut line_splits = vec!(Pos::new(0));

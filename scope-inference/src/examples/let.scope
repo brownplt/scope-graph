@@ -22,22 +22,6 @@ language Test {
     import 1;
   }
 
-(*
-  (Let binds body) {
-    import 1;
-    import 2;
-    bind 1 in 2;
-  }
-  (LetBind name defn binds) {
-    import 1;
-    import 2;
-    import 3;
-    export 1;
-    export 3;
-    bind 1 in 3;
-    bind 3 in 1;
-  }
-*)
   sugar (Let binds body)
   sugar (Bind name defn binds)
   sugar (EndBinds)

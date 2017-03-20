@@ -1,4 +1,4 @@
-### Installation & Testing ###
+### Installation ###
 
 To run, first install rust (version >= 1.9):
 
@@ -6,51 +6,87 @@ To run, first install rust (version >= 1.9):
 
 (Other installation methods are given at https://www.rust-lang.org/downloads.html)
 
-Then run the tests with:
+To infer the scope of a language (examples are in src/examples/), run
+
+    cargo run filename.scope
+
+To pass a language file in by stdin, run
+
+    cargo run stdin
+
+*Make sure that you are in the top level directory (that contains Cargo.toml and src/))*
+
+
+### Testing ###
+
+You can run the tests with:
 
     cargo test
 
-To see the resugared scopes, run:
+To see the tests' inferred scopes, run:
 
-    cargo run
+    cargo run tests
 
-The also prints out the wall-clock running time of resugaring, and of parsing+resugaring.
+The also prints out the wall-clock running time of scope inference, and of parsing+inference.
 
-(In both cases, make sure you are in the top level directory (that contains Cargo.toml and src/))
-
+*Make sure that you are in the top level directory (that contains Cargo.toml and src/))*
 
 
 ### Overview ###
 
-The language definition files are called
-
-    example_1.scope
-    example_2.scope
-    pyret.scope
+The language definition files end in ".scope". Examples can be found in src/examples/.
 
 Each language consists of a list of core scoping constructs, which have arities and scoping rules,
+followed by a list of surface constructs (i.e. sugars),
 followed by a list of desugaring rules of the form "rule Term1 => Term2".
+The core langauge scoping rules take the form:
 
-The scoping rules have a friendlier format than what is given in the paper. The meaning is as follows:
+    import i    - Provide lexical scope to child i.
+                  (You almost certainly want 'import i' for each 'i'.)
+    export i    - Export child i's declarations.
+    bind i in j - Make child i's declarations available in child j.
+    re-export   - Export your imports.
+                  (This is rarely if ever needed, but provided for completion.)
 
-    "import i"     means  "i  ⋖  R↑"
-    "export i"     means  "R↓ ⋖  i "
-    "bind i in j"  means  "j  ⋖  i "
+As an example, src/examples/example_1.scope reads:
+
+    language Test {
+      (Lambda param body) {
+        import 1;
+        import 2;
+        bind 1 in 2;
+      }
+      (Apply func arg) {
+        import 1;
+        import 2;
+      }
+      
+      sugar (Let name defn body)
+      
+      rule (Let a b c) => (Apply (Lambda a c) b)
+    }
 
 
 ### Extra Features ###
 
-The implementation has one feature not mentioned in the paper: when
+The implementation has one feature not mentioned (directly) in the paper: when
 declaring a sugar, you can require that some of its variables be
 disjoint. Usually this isn't necessary, because it can be inferred,
-but it's needed for `letrec`.
+but it's needed for `letrec`. The syntax for this is, e.g.,
+
+      sugar (LetrecBind var init binds) {
+        disjoint import 1;
+        disjoint bind 1 in 3;
+      }
+
 
 
 ### Files ###
 
-  src/parser/*       parser & lexer
-  src/preorder.rs    Preorders
-  src/term.rs        Terms & Rewrite rules
-  src/rule.rs        Scope rules & languages (which contain scope rules & rewrite rules)
-  src/resugar.rs     Scope resugaring
-  src/tests.rs       The test cases (Let, Let*, Pyret)
+     src/parser/*       parser & lexer
+     src/preorder.rs    Preorders
+     src/term.rs        Terms & Rewrite rules
+     src/rule.rs        Scope rules & languages (which contain scope rules & rewrite rules)
+     src/infer.rs       Scope inference
+     src/tests.rs       The test cases (Let, Let*, Pyret)
+     src/main.rs        Toplevel program; takes command line args
