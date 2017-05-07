@@ -10,8 +10,6 @@ use rule::{ScopeRule, Language};
 
 
 
-type Stream<'s> = Peekable<Lexer<'s>>;
-
 pub struct Parser<'s> {
     stream: Peekable<Lexer<'s>>
 }
