@@ -1,20 +1,21 @@
 language Test {
   (Lambda param body) {
-    import 1;
-    import 2;
-    bind 1 in 2;
+    import param;
+    import body;
+    bind param in body;
   }
   (Apply func arg) {
-    import 1;
-    import 2;
+    import func;
+    import arg;
   }
   (Begin body) {
-    import 1;
+    import body;
   }
   (Void) {}
   
   sugar (Let binds body)
   sugar (Bind name defn binds) {
+    disjoint import name;
     disjoint bind name in binds;
   }
   sugar (EndBinds)

@@ -30,7 +30,9 @@ impl fmt::Display for ScopeRule {
         }
         try!(write!(f, ") {{\n"));
         for fact in self.iter() {
-            try!(write!(f, "    {}\n", fact))
+            try!(write!(f, "    "));
+            try!(fact.pretty(f, &self.args));
+            try!(write!(f, ";\n"));
         }
         write!(f, "}}\n\n")
     }
@@ -138,6 +140,10 @@ impl Fact {
             left: left,
             right: right
         }
+    }
+
+    fn pretty(&self, f: &mut fmt::Formatter, args: &Vec<String>) -> fmt::Result {
+        Lt::new(self.left, self.right).pretty(f, args)
     }
 }
 

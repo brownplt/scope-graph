@@ -11,5 +11,5 @@ language Test {
   
   sugar (Let name defn body)
   
-  rule (Let a b c) => (Apply (Lambda a c) b)
+  rule (Let a b c) => (Apply (Lambda a) c)
 }

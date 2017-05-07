@@ -60,6 +60,16 @@ impl Lt {
             right: right
         }
     }
+
+    pub fn pretty(&self, f: &mut fmt::Formatter, args: &Vec<String>) -> fmt::Result {
+        match (self.left, self.right) {
+            (Child(i), Imp)      => write!(f, "import {}", args[i - 1]),
+            (Exp, Child(j))      => write!(f, "export {}", args[j - 1]),
+            (Child(i), Child(j)) => write!(f, "bind {} in {}", args[j - 1], args[i - 1]),
+            (Exp, Imp)           => write!(f, "export imports"),
+            (a, b)               => write!(f, "[invalid fact {} ⋖ {}]", a, b)
+        }
+    }
 }
 
 impl fmt::Display for Lt {

@@ -1,25 +1,25 @@
 language Test {
   (Lambda param body) {
-    import 1;
-    import 2;
-    bind 1 in 2;
+    import param;
+    import body;
+    bind param in body;
   }
   (Param param params) {
-    import 1;
-    import 2;
-    export 1;
-    export 2;
+    import param;
+    import params;
+    export param;
+    export params;
   }
   (Arg arg args) {
-    import 1;
-    import 2;
+    import arg;
+    import args;
   }
   (Apply func arg) {
-    import 1;
-    import 2;
+    import func;
+    import arg;
   }
   (Begin body) {
-    import 1;
+    import body;
   }
 
   sugar (Let binds body)

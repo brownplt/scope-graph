@@ -4,17 +4,17 @@ language ListComprehension {
   (* Haskell Lets are letrecs *)
 
   (Let binds body) {
-    import 1;
-    import 2;
-    bind 1 in 2;
+    import binds;
+    import body;
+    bind binds in body;
   }
   (Bind name defn binds) {
-    import 1;
-    import 2;
-    import 3;
-    bind 1 in 3;
-    bind 3 in 2;
-    export 3;
+    import name;
+    import defn;
+    import binds;
+    bind name in binds;
+    bind binds in defn;
+    export binds;
   }
   (End) {}
 
@@ -22,13 +22,13 @@ language ListComprehension {
   (* Case Expressions: `case expr of pattern -> template | ...` *)
 
   (Case expr cases) {
-    import 1;
-    import 2;
+    import expr;
+    import cases;
   }
   (ACase pattern template) {
-    import 1;
-    import 2;
-    bind 1 in 2;
+    import pattern;
+    import template;
+    bind pattern in template;
   }
   (Underscore) {}
 
@@ -36,30 +36,30 @@ language ListComprehension {
   (* If-then-else *)
 
   (If condition then else) {
-    import 1;
-    import 2;
-    import 3;
+    import condition;
+    import then;
+    import else;
   }
 
 
   (* Functions *)
 
   (Lambda pattern expr) {
-    import 1;
-    import 2;
-    bind 1 in 2;
+    import pattern;
+    import expr;
+    bind pattern in expr;
   }
   (Apply func arg) {
-    import 1;
-    import 2;
+    import func;
+    import arg;
   }
 
 
   (* Lists *)
 
   (Cons head tail) {
-    import 1;
-    import 2;
+    import head;
+    import tail;
   }
   (Empty) {}
   

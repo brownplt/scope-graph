@@ -87,15 +87,13 @@ mod tests {
         let lang = load_lang("src/examples/example_1.scope");
 
         // (Let statement)
-        // child 1: name
-        // child 2: definition
-        // child 3: body
         let ref let_rule = lang.surf_scope.rules["Let"];
+        let children = make_children(vec!("name", "definition", "body"));
         assert_eq!(let_rule.iter().count(), 4);
-        assert!(has_fact(let_rule, "import 1;"));
-        assert!(has_fact(let_rule, "import 2;"));
-        assert!(has_fact(let_rule, "import 3;"));
-        assert!(has_fact(let_rule, "bind 1 in 3;"));
+        assert!(has_fact(let_rule, &children, "import name;"));
+        assert!(has_fact(let_rule, &children, "import definition;"));
+        assert!(has_fact(let_rule, &children, "import body;"));
+        assert!(has_fact(let_rule, &children, "bind name in body;"));
     }
 
     
@@ -105,26 +103,23 @@ mod tests {
         let lang = load_lang("src/examples/example_2.scope");
 
         // (Let* statement)
-        // child 1: bindings
-        // child 2: body
         let ref let_rule = lang.surf_scope.rules["Let"];
+        let children = make_children(vec!("bindings", "body"));
         assert_eq!(let_rule.iter().count(), 3);
-        assert!(has_fact(let_rule, "import 1;"));
-        assert!(has_fact(let_rule, "import 2;"));
-        assert!(has_fact(let_rule, "bind 1 in 2;"));
+        assert!(has_fact(let_rule, &children, "import bindings;"));
+        assert!(has_fact(let_rule, &children, "import body;"));
+        assert!(has_fact(let_rule, &children, "bind bindings in body;"));
 
         // (Let* binding)
-        // child 1: name
-        // child 2: definition
-        // child 3: body
         let ref bind_rule = lang.surf_scope.rules["Bind"];
+        let children = make_children(vec!("name", "definition", "body"));
         assert_eq!(bind_rule.iter().count(), 6);
-        assert!(has_fact(bind_rule, "import 1;"));
-        assert!(has_fact(bind_rule, "import 2;"));
-        assert!(has_fact(bind_rule, "import 3;"));
-        assert!(has_fact(bind_rule, "bind 1 in 3;"));
-        assert!(has_fact(bind_rule, "export 1;"));
-        assert!(has_fact(bind_rule, "export 3;"));
+        assert!(has_fact(bind_rule, &children, "import name;"));
+        assert!(has_fact(bind_rule, &children, "import definition;"));
+        assert!(has_fact(bind_rule, &children, "import body;"));
+        assert!(has_fact(bind_rule, &children, "bind name in body;"));
+        assert!(has_fact(bind_rule, &children, "export name;"));
+        assert!(has_fact(bind_rule, &children, "export body;"));
     }
 
     #[test]
@@ -134,96 +129,83 @@ mod tests {
         let lang = load_lang("src/examples/r5rs.scope");
 
         // (Let*)
-        // child 1: bindings
-        // child 2: body
         let ref rule = lang.surf_scope.rules["Letstar"];
+        let children = make_children(vec!("bindings", "body"));
         assert_eq!(rule.iter().count(), 3);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "bind 1 in 2;"));
+        assert!(has_fact(rule, &children, "import bindings;"));
+        assert!(has_fact(rule, &children, "import body;"));
+        assert!(has_fact(rule, &children, "bind bindings in body;"));
 
         // (Let* binding)
-        // child 1: name
-        // child 2: defintion
-        // child 3: rest of binding list
         let ref rule = lang.surf_scope.rules["LetstarBind"];
+        let children = make_children(vec!("name", "definition", "rest"));
         assert_eq!(rule.iter().count(), 6);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "import 3;"));
-        assert!(has_fact(rule, "bind 1 in 3;"));
-        assert!(has_fact(rule, "export 1;"));
-        assert!(has_fact(rule, "export 3;"));
+        assert!(has_fact(rule, &children, "import name;"));
+        assert!(has_fact(rule, &children, "import definition;"));
+        assert!(has_fact(rule, &children, "import rest;"));
+        assert!(has_fact(rule, &children, "bind name in rest;"));
+        assert!(has_fact(rule, &children, "export name;"));
+        assert!(has_fact(rule, &children, "export rest;"));
 
         // (Letrec)
-        // child 1: bindings
-        // child 2: body
         let ref rule = lang.surf_scope.rules["Letrec"];
+        let children = make_children(vec!("bindings", "body"));
         assert_eq!(rule.iter().count(), 3);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "bind 1 in 2;"));
+        assert!(has_fact(rule, &children, "import bindings;"));
+        assert!(has_fact(rule, &children, "import body;"));
+        assert!(has_fact(rule, &children, "bind bindings in body;"));
         
         // (Letrec binding)
-        // child 1: name
-        // child 2: defintion
-        // child 3: rest of binding list
         let ref rule = lang.surf_scope.rules["LetrecBind"];
+        let children = make_children(vec!("name", "definition", "rest"));
         assert_eq!(rule.iter().count(), 8);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "import 3;"));
-        assert!(has_fact(rule, "export 1;"));
-        assert!(has_fact(rule, "export 3;"));
-        assert!(has_fact(rule, "bind 1 in 2;"));
-        assert!(has_fact(rule, "bind 3 in 2;"));
-        assert!(has_fact(rule, "bind 1 in 3;"));
+        assert!(has_fact(rule, &children, "import name;"));
+        assert!(has_fact(rule, &children, "import definition;"));
+        assert!(has_fact(rule, &children, "import rest;"));
+        assert!(has_fact(rule, &children, "export name;"));
+        assert!(has_fact(rule, &children, "export rest;"));
+        assert!(has_fact(rule, &children, "bind name in definition;"));
+        assert!(has_fact(rule, &children, "bind rest in definition;"));
+        assert!(has_fact(rule, &children, "bind name in rest;"));
         
         // (Regular Let)
-        // child 1: bindings
-        // child 2: body
         let ref rule = lang.surf_scope.rules["Let"];
+        let children = make_children(vec!("bindings", "body"));
         assert_eq!(rule.iter().count(), 3);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "bind 1 in 2;"));
+        assert!(has_fact(rule, &children, "import bindings;"));
+        assert!(has_fact(rule, &children, "import body;"));
+        assert!(has_fact(rule, &children, "bind bindings in body;"));
 
         // (Regular Let binding)
-        // child 1: name
-        // child 2: defintion
-        // child 3: rest of binding list
         let ref rule = lang.surf_scope.rules["LetBind"];
+        let children = make_children(vec!("name", "definition", "rest"));
         assert_eq!(rule.iter().count(), 5);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "import 3;"));
-        assert!(has_fact(rule, "export 1;"));
-        assert!(has_fact(rule, "export 3;"));
+        assert!(has_fact(rule, &children, "import name;"));
+        assert!(has_fact(rule, &children, "import definition;"));
+        assert!(has_fact(rule, &children, "import rest;"));
+        assert!(has_fact(rule, &children, "export name;"));
+        assert!(has_fact(rule, &children, "export rest;"));
         
         // ("Named" Let loop)
-        // child 1: tag
-        // child 2: bindings
-        // child 3: body
         let ref rule = lang.surf_scope.rules["NamedLet"];
+        let children = make_children(vec!("tag", "bindings", "body"));
         assert_eq!(rule.iter().count(), 6);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "import 3;"));
-        assert!(has_fact(rule, "bind 1 in 2;"));
-        assert!(has_fact(rule, "bind 2 in 3;"));
-        assert!(has_fact(rule, "bind 1 in 3;"));
+        assert!(has_fact(rule, &children, "import tag;"));
+        assert!(has_fact(rule, &children, "import bindings;"));
+        assert!(has_fact(rule, &children, "import body;"));
+        assert!(has_fact(rule, &children, "bind tag in bindings;"));
+        assert!(has_fact(rule, &children, "bind bindings in body;"));
+        assert!(has_fact(rule, &children, "bind tag in body;"));
 
         // ("Named" Let binding)
-        // child 1: name
-        // child 2: definition
-        // child 3: rest of binding list
         let ref rule = lang.surf_scope.rules["NamedLetBind"];
+        let children = make_children(vec!("name", "definition", "rest"));
         assert_eq!(rule.iter().count(), 5);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "import 3;"));
-        assert!(has_fact(rule, "export 1;"));
-        assert!(has_fact(rule, "export 3;"));
+        assert!(has_fact(rule, &children, "import name;"));
+        assert!(has_fact(rule, &children, "import definition;"));
+        assert!(has_fact(rule, &children, "import rest;"));
+        assert!(has_fact(rule, &children, "export name;"));
+        assert!(has_fact(rule, &children, "export rest;"));
     }
 
     #[test]
@@ -235,42 +217,46 @@ mod tests {
         // [ e | Q ]
         //   1   2
         let ref rule = lang.surf_scope.rules["ListCompr"];
+        let children = make_children(vec!("e", "Q"));
         assert_eq!(rule.iter().count(), 3);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "bind 2 in 1;"));
+        assert!(has_fact(rule, &children, "import e;"));
+        assert!(has_fact(rule, &children, "import Q;"));
+        assert!(has_fact(rule, &children, "bind Q in e;"));
 
         // Boolean Guards
         // b, Q
         // 1  2
         let ref rule = lang.surf_scope.rules["Guard"];
+        let children = make_children(vec!("b", "Q"));
         assert_eq!(rule.iter().count(), 3);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "export 2;"));
+        assert!(has_fact(rule, &children, "import b;"));
+        assert!(has_fact(rule, &children, "import Q;"));
+        assert!(has_fact(rule, &children, "export Q;"));
 
         // Generators
         // p <- l, Q
         // 1    2  3
         let ref rule = lang.surf_scope.rules["Generator"];
+        let children = make_children(vec!("p", "l", "Q"));
         assert_eq!(rule.iter().count(), 6);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "import 3;"));
-        assert!(has_fact(rule, "bind 1 in 3;"));
-        assert!(has_fact(rule, "export 1;"));
-        assert!(has_fact(rule, "export 3;"));
+        assert!(has_fact(rule, &children, "import p;"));
+        assert!(has_fact(rule, &children, "import l;"));
+        assert!(has_fact(rule, &children, "import Q;"));
+        assert!(has_fact(rule, &children, "bind p in Q;"));
+        assert!(has_fact(rule, &children, "export p;"));
+        assert!(has_fact(rule, &children, "export Q;"));
 
         // Local bind
         // let decls, Q
         //      1     2
         let ref rule = lang.surf_scope.rules["LocalBind"];
+        let children = make_children(vec!("decls", "Q"));
         assert_eq!(rule.iter().count(), 5);
-        assert!(has_fact(rule, "import 1;"));
-        assert!(has_fact(rule, "import 2;"));
-        assert!(has_fact(rule, "bind 1 in 2;"));
-        assert!(has_fact(rule, "export 1;"));
-        assert!(has_fact(rule, "export 2;"));
+        assert!(has_fact(rule, &children, "import decls;"));
+        assert!(has_fact(rule, &children, "import Q;"));
+        assert!(has_fact(rule, &children, "bind decls in Q;"));
+        assert!(has_fact(rule, &children, "export decls;"));
+        assert!(has_fact(rule, &children, "export Q;"));
     }
 
     /// The Pyret examples from the paper (section 6)
@@ -283,23 +269,25 @@ mod tests {
         // child 2: binding list
         // child 4: for loop body
         let ref for_rule = lang.surf_scope.rules["For"];
+        let children = make_children(vec!("func", "bindings", "body"));
         assert_eq!(for_rule.iter().count(), 4);
-        assert!(has_fact(for_rule, "import 1;"));
-        assert!(has_fact(for_rule, "import 2;"));
-        assert!(has_fact(for_rule, "import 3;"));
-        assert!(has_fact(for_rule, "bind 2 in 3;"));
+        assert!(has_fact(for_rule, &children, "import func;"));
+        assert!(has_fact(for_rule, &children, "import bindings;"));
+        assert!(has_fact(for_rule, &children, "import body;"));
+        assert!(has_fact(for_rule, &children, "bind bindings in body;"));
 
         // (For loop binding)
         // child 1: parameter
         // child 2: value
         // child 3: rest of bindings
         let ref bind_rule = lang.surf_scope.rules["From"];
+        let children = make_children(vec!("param", "value", "rest"));
         assert_eq!(bind_rule.iter().count(), 5);
-        assert!(has_fact(bind_rule, "import 1;"));
-        assert!(has_fact(bind_rule, "import 2;"));
-        assert!(has_fact(bind_rule, "import 3;"));
-        assert!(has_fact(bind_rule, "export 1;"));
-        assert!(has_fact(bind_rule, "export 3;"));
+        assert!(has_fact(bind_rule, &children, "import param;"));
+        assert!(has_fact(bind_rule, &children, "import value;"));
+        assert!(has_fact(bind_rule, &children, "import rest;"));
+        assert!(has_fact(bind_rule, &children, "export param;"));
+        assert!(has_fact(bind_rule, &children, "export rest;"));
 
         // (Function definition)
         // child 1: function name
@@ -307,28 +295,30 @@ mod tests {
         // child 3: function body
         // child 4: rest of program
         let ref fun_rule = lang.surf_scope.rules["Fun"];
+        let children = make_children(vec!("name", "params", "body", "rest"));
         assert_eq!(fun_rule.iter().count(), 10);
-        assert!(has_fact(fun_rule, "import 1;"));
-        assert!(has_fact(fun_rule, "import 2;"));
-        assert!(has_fact(fun_rule, "import 3;"));
-        assert!(has_fact(fun_rule, "import 4;"));
-        assert!(has_fact(fun_rule, "export 1;"));
-        assert!(has_fact(fun_rule, "export 4;"));
-        assert!(has_fact(fun_rule, "bind 1 in 4;"));
-        assert!(has_fact(fun_rule, "bind 1 in 2;"));
-        assert!(has_fact(fun_rule, "bind 1 in 3;"));
-        assert!(has_fact(fun_rule, "bind 2 in 3;"));
+        assert!(has_fact(fun_rule, &children, "import name;"));
+        assert!(has_fact(fun_rule, &children, "import params;"));
+        assert!(has_fact(fun_rule, &children, "import body;"));
+        assert!(has_fact(fun_rule, &children, "import rest;"));
+        assert!(has_fact(fun_rule, &children, "export name;"));
+        assert!(has_fact(fun_rule, &children, "export rest;"));
+        assert!(has_fact(fun_rule, &children, "bind name in rest;"));
+        assert!(has_fact(fun_rule, &children, "bind name in params;"));
+        assert!(has_fact(fun_rule, &children, "bind name in body;"));
+        assert!(has_fact(fun_rule, &children, "bind params in body;"));
 
         // (Let statement)
-        // child 1: name
+        // child name: name
         // child 2: definition
         // child 3: rest of program
         let ref let_rule = lang.surf_scope.rules["Let"];
+        let children = make_children(vec!("name", "definition", "rest"));
         assert_eq!(let_rule.iter().count(), 4);
-        assert!(has_fact(let_rule, "import 1;"));
-        assert!(has_fact(let_rule, "import 2;"));
-        assert!(has_fact(let_rule, "import 3;"));
-        assert!(has_fact(let_rule, "bind 1 in 3;"));
+        assert!(has_fact(let_rule, &children, "import name;"));
+        assert!(has_fact(let_rule, &children, "import definition;"));
+        assert!(has_fact(let_rule, &children, "import rest;"));
+        assert!(has_fact(let_rule, &children, "bind name in rest;"));
     }
 
     // Load a language from a file and infer its scope.
@@ -341,8 +331,8 @@ mod tests {
     }
 
     // Check that a rule contains at least a particular fact
-    fn has_fact(rule: &ScopeRule, fact: &str) -> bool {
-        let fact = parse_fact(&SourceFile::from_str(fact));
+    fn has_fact(rule: &ScopeRule, children: &Vec<String>, fact: &str) -> bool {
+        let fact = parse_fact(&SourceFile::from_str(fact), children);
         rule.lt(fact.left, fact.right)
     }
 
@@ -360,5 +350,9 @@ mod tests {
                 decls.len() == 1 && decls[0] == decl
             }
         }
+    }
+
+    fn make_children(v: Vec<&'static str>) -> Vec<String> {
+        v.into_iter().map(|s| s.to_string()).collect()
     }
 }

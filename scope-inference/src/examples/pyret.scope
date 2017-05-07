@@ -3,66 +3,67 @@ language Pyret {
   (Program body) {} (* Marks the toplevel of the program *)
 
   (Lambda params body) {
-    import 1;
-    import 2;
-    bind 1 in 2;
+    import params;
+    import body;
+    bind params in body;
   }
 
   (Apply func arg) {
-    import 1;
-    import 2;
+    import func;
+    import arg;
   }
 
   (Arg arg args) {
-    import 1;
-    import 2;
+    import arg;
+    import args;
   }
 
   (End) {}
 
   (Param param params) {
-    import 1;
-    import 2;
-    export 1;
-    export 2;
+    import param;
+    import params;
+    export param;
+    export params;
   }
 
   (Letrec binds body) {
-    import 1;
-    import 2;
-    export 1;
-    export 2;
-    bind 1 in 2;
+    import binds;
+    import body;
+    export binds;
+    export body;
+    bind binds in body;
   }
 
   (LetrecBind name value binds) {
-    import 1;
-    import 2;
-    import 3;
-    export 3;
-    bind 1 in 3;
-    bind 3 in 2;
+    import name;
+    import value;
+    import binds;
+    export binds;
+    bind name in binds;
+    bind binds in value;
   }
 
   (LetBind name value binds) {
-    import 1;
-    import 2;
-    import 3;
-    export 3;
-    bind 1 in 3;
+    import name;
+    import value;
+    import binds;
+    export binds;
+    bind name in binds;
   }
 
   (LetExpr bindings body) {
-    import 1;
-    import 2;
-    bind 1 in 2;
+    import bindings;
+    import body;
+    bind bindings in body;
   }
 
   (Newtype name namet rest) {
-    import 1;
-    import 2;
-    export 1;
-    export 2;
+    import name;
+    import namet;
+    import rest;
+    export name;
+    export namet;
   }
 
 
@@ -70,61 +71,61 @@ language Pyret {
   (* Data specific scoping rules *)
 
   (DataExpr name namet params mixins variants shared) {
-    import 1;
-    import 2;
-    import 3;
-    import 4;
-    import 5;
-    import 6;
-    bind 1 in 3;
-    bind 1 in 5;
-    bind 1 in 6;
-    bind 3 in 5;
-    bind 3 in 6;
-    export 1;
-    export 2;
-    export 5;
-    export 6;
+    import name;
+    import namet;
+    import params;
+    import mixins;
+    import variants;
+    import shared;
+    bind name in params;
+    bind name in variants;
+    bind name in shared;
+    bind params in variants;
+    bind params in shared;
+    export name;
+    export namet;
+    export variants;
+    export shared;
   }
 
   (Variant name members with_members) {
-    import 1;
-    import 2;
-    import 3;
-    bind 1 in 2;
+    import name;
+    import members;
+    import with_members;
+    bind name in members;
   }
 
   (VariantMember member_type name) {
-    import 2;
-    export 2;
+    import name;
+    export name;
   }
 
   (VariantMemberTypeNormal) {}
   (VariantMemberTypeMutable) {}
 
   (DataField name value) {
-    import 1;
-    import 2;
-    export 1;
+    import name;
+    import value;
+    export name;
   }
 
   (MutableField name value) {
-    import 1;
-    import 2;
-    export 1;
+    import name;
+    import value;
+    export name;
   }
 
   (MethodField name params args body) {
-    import 1;
-    import 2;
-    import 3;
-    import 4;
-    bind 1 in 2;
-    bind 1 in 3;
-    bind 1 in 4;
-    bind 2 in 4;
-    bind 3 in 4;
-    export 1; 
+    import name;
+    import params;
+    import args;
+    import body;
+    bind name in params;
+    bind name in args;
+    bind name in body;
+    bind params in body;
+    bind args in body;
+    export name; 
   }
 
   

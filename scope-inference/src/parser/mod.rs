@@ -22,6 +22,6 @@ pub fn parse_language<'s, Val>(src: &'s SourceFile) -> Language<Val> {
     Parser::from_source(src).parse_language().unwrap()
 }
 
-pub fn parse_fact<'s>(src: &'s SourceFile) -> Lt {
-    Parser::from_source(src).parse_fact().unwrap()
+pub fn parse_fact<'s>(src: &'s SourceFile, args: &Vec<String>) -> Lt {
+    Parser::from_source(src).parse_fact(args).unwrap()
 }

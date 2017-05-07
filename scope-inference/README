@@ -52,13 +52,13 @@ As an example, src/examples/example_1.scope reads:
 
     language Test {
       (Lambda param body) {
-        import 1;
-        import 2;
-        bind 1 in 2;
+        import param;
+        import body;
+        bind param in body;
       }
       (Apply func arg) {
-        import 1;
-        import 2;
+        import func;
+        import arg;
       }
       
       sugar (Let name defn body)
@@ -69,14 +69,14 @@ As an example, src/examples/example_1.scope reads:
 
 ### Extra Features ###
 
-The implementation has one feature not mentioned (directly) in the paper: when
+The implementation has one feature not discussed in the paper: when
 declaring a sugar, you can require that some of its variables be
 disjoint. Usually this isn't necessary, because it can be inferred,
 but it's needed for `letrec`. The syntax for this is, e.g.,
 
       sugar (LetrecBind var init binds) {
-        disjoint import 1;
-        disjoint bind 1 in 3;
+        disjoint import var;
+        disjoint bind var in binds;
       }
 
 

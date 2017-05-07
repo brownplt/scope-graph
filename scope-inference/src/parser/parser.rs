@@ -1,5 +1,4 @@
 use std::iter::Peekable;
-use std::str::FromStr;
 
 use parser::source::SourceFile;
 use parser::lexer::{Lexeme, Token, Lexer};
@@ -150,56 +149,61 @@ impl<'s> Parser<'s> {
         Ok(RewriteRule::new(lhs, rhs))
     }
 
-    fn parse_num(&mut self) -> Result<usize, ()>
+    fn parse_child_name(&mut self, names: &Vec<String>) -> usize
     {
-        let n = try!(self.parse_token(Token::Num));
-        Ok(usize::from_str(n.span.as_str()).unwrap())
-    }
-    
-    fn parse_child_index(&mut self) -> usize
-    {
-        let i = self.parse_num();
-        let i = self.check("Index of subterm", i);
-        if i == 0 {
-            panic!("Subterm index cannot be 0 (it is 1-indexed)")
+        fn find_str(v: &Vec<String>, t: &String) -> Option<usize> {
+            let mut ans = None;
+            for (i, s) in v.iter().enumerate() {
+                if s.as_str() == t.as_str() {
+                    ans = Some(i);
+                }
+            }
+            ans
         }
-        i
+        let n = self.parse_token(Token::Name);
+        let n = self.check("Name of subterm", n);
+        let n = format!("{}", n);
+        let i = match find_str(names, &n) {
+            None => panic!("In preorder, subterm `{}` not found.", n),
+            Some(i) => i
+        };
+        i + 1
     }
 
-    fn parse_fact_import(&mut self) -> Result<Lt, ()>
+    fn parse_fact_import(&mut self, names: &Vec<String>) -> Result<Lt, ()>
     {
         try!(self.parse_token(Token::Import));
-        let i = self.parse_child_index();
+        let i = self.parse_child_name(names);
         Ok(Lt::new(Child(i), Imp))
     }
 
-    fn parse_fact_export(&mut self) -> Result<Lt, ()>
+    fn parse_fact_export(&mut self, names: &Vec<String>) -> Result<Lt, ()>
     {
         try!(self.parse_token(Token::Export));
-        let i = self.parse_child_index();
+        let i = self.parse_child_name(names);
         Ok(Lt::new(Exp, Child(i)))
     }
 
-    fn parse_fact_sibling(&mut self) -> Result<Lt, ()>
+    fn parse_fact_sibling(&mut self, names: &Vec<String>) -> Result<Lt, ()>
     {
         try!(self.parse_token(Token::Bind));
         
-        let i = self.parse_child_index();
+        let i = self.parse_child_name(names);
         
         let _in = self.parse_token(Token::In);
         self.check("`in`", _in);
         
-        let j = self.parse_child_index();
+        let j = self.parse_child_name(names);
 
         Ok(Lt::new(Child(j), Child(i)))
     }
 
-    pub fn parse_fact(&mut self) -> Result<Lt, ()>
+    pub fn parse_fact(&mut self, names: &Vec<String>) -> Result<Lt, ()>
     {
         let fact = try!(Err(())
-            .or_else(|_| self.parse_fact_import())
-            .or_else(|_| self.parse_fact_export())
-            .or_else(|_| self.parse_fact_sibling()));
+            .or_else(|_| self.parse_fact_import(names))
+            .or_else(|_| self.parse_fact_export(names))
+            .or_else(|_| self.parse_fact_sibling(names)));
         
         let _semi = self.parse_token(Token::Semicolon);
         self.check("Semicolon", _semi);
@@ -207,13 +211,13 @@ impl<'s> Parser<'s> {
         Ok(fact)
     }
 
-    fn parse_disj_fact(&mut self) -> Result<Lt, ()>
+    fn parse_disj_fact(&mut self, names: &Vec<String>) -> Result<Lt, ()>
     {
         try!(self.parse_token(Token::Disjoint));
         let fact = try!(Err(())
-            .or_else(|_| self.parse_fact_import())
-            .or_else(|_| self.parse_fact_export())
-            .or_else(|_| self.parse_fact_sibling()));
+            .or_else(|_| self.parse_fact_import(names))
+            .or_else(|_| self.parse_fact_export(names))
+            .or_else(|_| self.parse_fact_sibling(names)));
         let _semi = self.parse_token(Token::Semicolon);
         self.check("Semicolon", _semi);
         Ok(fact)
@@ -242,7 +246,7 @@ impl<'s> Parser<'s> {
         self.check("Left brace", _lb);
         
         let mut facts = vec!();
-        while let Ok(fact) = self.parse_fact() {
+        while let Ok(fact) = self.parse_fact(&args) {
             facts.push(fact);
         }
         
@@ -259,7 +263,7 @@ impl<'s> Parser<'s> {
 
         if let Ok(_) = self.parse_token(Token::LBrace) {
             let mut disjs = vec!();
-            while let Ok(disj) = self.parse_disj_fact() {
+            while let Ok(disj) = self.parse_disj_fact(&args) {
                 disjs.push(disj);
             }
             
