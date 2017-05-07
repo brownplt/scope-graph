@@ -3,3 +3,4 @@
 *.aux
 *.log
 *.pdf
+scope-inference/Cargo.lock
