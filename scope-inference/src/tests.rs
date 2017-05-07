@@ -64,6 +64,12 @@ mod tests {
     fn check_disjoint_letrec() {
         load_lang("src/examples/test_disjointness_letrec.scope");
     }
+
+    #[test]
+    #[should_panic(expected = "Term `Lambda` constructed with the wrong number of children. Found 1 children, but expected 2 children.")]
+    fn check_arity_error() {
+        load_lang("src/examples/test_arity_error.scope");
+    }
     
     #[test]
     fn binding() {

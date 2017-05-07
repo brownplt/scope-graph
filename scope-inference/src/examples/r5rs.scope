@@ -132,8 +132,8 @@ language R5RS {
            (Set as_refn$x $alpha (Set as_refn$y $beta body))))
 
   (* Test disjointness requirement: replacing "@y" with "@x" gives a disjointness error. *)
-  rule (TestDisj)
-    => (Letrec (LetrecBind @x (Void) (LetrecBind @y (Void) (End))))
+  rule (TestDisj body)
+    => (Letrec (LetrecBind @x (Void) (LetrecBind @y (Void) (End))) body)
 
   (* Named Let *)
 

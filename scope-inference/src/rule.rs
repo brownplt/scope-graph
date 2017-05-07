@@ -231,13 +231,19 @@ impl<Val> Language<Val> {
                rewrite_rules: Vec<RewriteRule<Val>>)
                -> Language<Val>
     {
-        fn gather_arities<Val>(term: &Term<Val>, surf_scope: &mut Vec<ScopeRule>) {
+        fn gather_arities<Val>(term: &Term<Val>, surf_scope: &mut Vec<ScopeRule>, core_scope: &Vec<ScopeRule>) {
             match term {
                 &Term::Stx(ref node, ref subterms) => {
                     let mut exists = false;
                     for ref rule in surf_scope.iter() {
                         if &rule.node == node {
                             exists = true;
+                            let arity = subterms.len();
+                            let expected_arity = rule.arity();
+                            if arity != expected_arity {
+                                panic!("Term `{}` constructed with the wrong number of children. Found {} children, but expected {} children.",
+                                       node, arity, expected_arity);
+                            }
                         }
                     }
                     if !exists {
@@ -245,7 +251,7 @@ impl<Val> Language<Val> {
                         surf_scope.push(ScopeRule::new_implicit(node.clone(), arity));
                     }
                     for term in subterms.iter() {
-                        gather_arities(term, surf_scope)
+                        gather_arities(term, surf_scope, core_scope)
                     }
                 }
                 _ => ()
@@ -256,8 +262,8 @@ impl<Val> Language<Val> {
             surf_scope.push(rule.clone());
         }
         for rule in rewrite_rules.iter() {
-            gather_arities(&rule.left, &mut surf_scope);
-            gather_arities(&rule.right, &mut surf_scope);
+            gather_arities(&rule.left, &mut surf_scope, &core_scope);
+            gather_arities(&rule.right, &mut surf_scope, &core_scope);
         }
         
         Language{
