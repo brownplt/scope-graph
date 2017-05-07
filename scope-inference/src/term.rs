@@ -87,7 +87,7 @@ impl<Val> Term<Val> {
                 &Decl(_)   => vars.push(path.clone()),
                 &Refn(_)   => vars.push(path.clone()),
                 &Global(_) => (), // Does not partipate in hygiene (cannot be bound by a decl)
-                &HoleToRefn(_) => (), // [TODO] Does not participate in hygiene much
+                &HoleToRefn(_) => (),
                 &Value(_)  => (),
                 &Stx(_, ref subterms) => {
                     for (i, subterm) in subterms.iter().enumerate() {

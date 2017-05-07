@@ -48,7 +48,7 @@ pub struct Loc {
     col: usize
 }
 impl Loc {
-    //TODO: Seems to be a bug; this code is not dead...
+    // The tales of my death were greatly exaggerated.
     #[allow(dead_code)]
     fn new(line: usize, col: usize) -> Loc {
         Loc{ line: line, col: col }
@@ -139,21 +139,14 @@ pub trait AsSpan<'a> {
 
 
 pub struct SourceFile {
-    // TODO: Better representation
     pub filename: String,
     pub text: String,
     line_splits: Vec<Pos>
 }
 
 impl SourceFile {
-/*
-    pub fn empty() -> SourceFile {
-        SourceFile::new("!Empty".to_string(), "".to_string())
-    }
-*/
 
     pub fn open<P: AsRef<Path>>(path: P) -> Result<SourceFile, io::Error> {
-        // TODO: Some sort of error checking maybe
         let mut file = try!(File::open(path.as_ref()));
         let mut contents = String::new();
         try!(file.read_to_string(&mut contents));
@@ -186,15 +179,6 @@ impl SourceFile {
     pub fn from_str(text: &str) -> SourceFile {
         SourceFile::new(String::from("[Inline String]"), String::from(text))
     }
-/*
-    pub fn start(&self) -> Span {
-        Span::new(self, Pos::new(0), Pos::new(0))
-    }
-
-    pub fn end(&self) -> Span {
-        Span::new(self, Pos::new(self.text.len()), Pos::new(self.text.len()))
-    }
-*/
 
     pub fn pos_to_loc(&self, pos: Pos) -> Loc {
         let res = self.line_splits.binary_search(&pos);
