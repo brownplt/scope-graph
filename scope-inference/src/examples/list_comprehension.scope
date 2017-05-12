@@ -25,9 +25,10 @@ language ListComprehension {
     import expr;
     import cases;
   }
-  (ACase pattern template) {
+  (ACase pattern template rest) {
     import pattern;
     import template;
+    import rest;
     bind pattern in template;
   }
   (Underscore) {}
