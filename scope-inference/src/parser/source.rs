@@ -137,7 +137,6 @@ pub trait AsSpan<'a> {
 }
 
 
-
 pub struct SourceFile {
     pub filename: String,
     pub text: String,
@@ -146,6 +145,7 @@ pub struct SourceFile {
 
 impl SourceFile {
 
+    /// Reads from a file.
     pub fn open<P: AsRef<Path>>(path: P) -> Result<SourceFile, io::Error> {
         let mut file = try!(File::open(path.as_ref()));
         let mut contents = String::new();
@@ -154,6 +154,7 @@ impl SourceFile {
         Ok(SourceFile::new(filename, contents))
     }
 
+    /// Reads from stdin.
     pub fn open_stdin() -> Result<SourceFile, io::Error> {
         let mut contents = String::new();
         while let Ok(n) = io::stdin().read_line(&mut contents) {
@@ -162,6 +163,7 @@ impl SourceFile {
         Ok(SourceFile::new(String::from("stdin"), contents))
     }
 
+    /// Reads from a `String` (useful for testing).
     pub fn new(filename: String, text: String) -> SourceFile {
         let mut split = 0;
         let mut line_splits = vec!(Pos::new(0));

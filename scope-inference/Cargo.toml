@@ -1,8 +1,12 @@
 [package]
 name = "scope-inference"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["anon"]
 
 [dependencies]
 regex = "*"
-lazy_static = "*"
+lazy_static = "0.2"
+
+[[bin]]
+name = "lib"
+doc = false
