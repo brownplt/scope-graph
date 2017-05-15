@@ -115,8 +115,8 @@
 //! - Section 5.2: the example of constraint generation given at the
 //! end of this section is tested in `constraint_generation()` in `src/test.rs`.
 //! (This test is run when invoking `cargo test`.)
-//! - Section 6: the wallclock runtime is measured when running `cargo
-//! run timing_test`.
+//! - Section 6: the wallclock runtime is measured when running
+//! `cargo run timing_test`.
 //! - Section 6.1: this `for` sugar is from the Pyret language.
 //!   Run `cargo run src/examples/pyret.scope`.
 //! - Section 6.2: all of these sugars are from Haskell list

@@ -1,5 +1,6 @@
 extern crate scope_inference;
 
+use std::time;
 use std::time::SystemTime;
 use std::env;
 
@@ -33,6 +34,10 @@ fn main() {
     }
 }
 
+fn duration_as_milliseconds(dur: time::Duration) -> u64 {
+    dur.as_secs() * 1000 + (dur.subsec_nanos() as u64 / 1000000)
+}
+
 fn timing_test() {
     let total_timer = SystemTime::now();
     let mut lang_1: Language<usize> =
@@ -51,8 +56,8 @@ fn timing_test() {
     infer_scope(&mut lang_3);
     infer_scope(&mut lang_4);
     infer_scope(&mut lang_5);
-    let total_time = total_timer.elapsed();
-    let infer_time = infer_timer.elapsed();
+    let total_time = total_timer.elapsed().expect("timer failed");
+    let infer_time = infer_timer.elapsed().expect("timer failed");
 
     println!("\n=============== Example 1 (Single-arm let) =====\n");
     println!("{}", lang_1.surf_scope);
@@ -65,6 +70,6 @@ fn timing_test() {
     println!("\n===============  R5RS Scheme  ==================\n");
     println!("{}", lang_5.surf_scope);
 
-    println!("\nTotal time {:?}", total_time);
-    println!("Inference time {:?}", infer_time);
+    println!("\nTotal time: {}ms", duration_as_milliseconds(total_time));
+    println!("Inference time: {}ms", duration_as_milliseconds(infer_time));
 }
