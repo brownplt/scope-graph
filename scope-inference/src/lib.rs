@@ -13,8 +13,9 @@
 //! In the scope-inference directory, run `cargo test`.
 //! (This runs `src/test.rs`.)
 //!
+//! This runs the test cases, but does not show the inferred scopes.
 //! To see the inferred scopes and total inference time,
-//! run `cargo run tests`. (This runs `timing_test()` in `src/main.rs`.)
+//! run `cargo run timing_test`. (This runs `timing_test()` in `src/main.rs`.)
 //!
 //! Both of these commands infer scope for five languages:
 //!
@@ -28,19 +29,19 @@
 //! this implementation.
 //! 
 //! - Section 2.1: single-arm let is the first test language.
+//!   Run `cargo run src/examples/single_arm_let.scope`.
 //! - Section 2.2: multi-arm let is the second test language.
+//!   Run `cargo run src/examples/multi_arm_let.scope`.
 //! - Section 5.2: the example of constraint generation given at the
 //! end of this section is tested in `constraint_generation()` in `src/test.rs`.
 //! - Section 6: the wallclock runtime is measured when running `cargo
 //! run tests`.
 //! - Section 6.1-6.3: these sugars are part of the Pyret and R5RS
 //! language test cases.
+//!   Run `cargo run src/examples/r5rs.scope`
+//!   and `cargo run src/examples/pyret.scope`.
 //! - Section 6.4: you can see scope inference fail on the `do` sugar
 //! by running `cargo run src/examples/do.scope`.
-//!
-//! Claims about the scope inferred for a sugar can be verified either
-//! by viewing the test case in `src/test.rs`, or by running `cargo
-//! run tests` and checking the inferred scope for that sugar shown in the output.
 
 //! ## Installation
 //!

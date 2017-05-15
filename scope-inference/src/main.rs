@@ -27,7 +27,7 @@ fn main() {
         println!("{}", lang.surf_scope);
     } else {
         let mut lang: Language<usize> = parse_language(&SourceFile::open(&args[1])
-                                                       .expect("Could not open file"));
+                                                       .expect("File not found"));
         infer_scope(&mut lang);
         println!("{}", lang.surf_scope);
     }
