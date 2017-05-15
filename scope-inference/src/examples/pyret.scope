@@ -132,7 +132,7 @@ language Pyret {
 
   (* Sugars *)
 
-  sugar (For iter binds body)
+  sugar (For func froms body)
   sugar (From param arg froms)
   sugar (Fun name params body rest_stmts)
   sugar (Let name value rest_stmts)
