@@ -29,6 +29,7 @@ impl Var {
 }
 
 
+// Represents both terms (described in section 3.1) and contexts (section 5.1)
 pub enum Term<Val> {
     Decl(Var),
     Refn(Var),
@@ -61,6 +62,7 @@ impl<Val> fmt::Display for Term<Val> where Val : fmt::Display {
 }
 
 impl<Val> Term<Val> {
+    // Find the `i`th child of this term (assumes that `i` is in range).
     pub fn child(&self, i: usize) -> &Term<Val> where Val : fmt::Display {
         match self {
             &Stx(_, ref subterms) => {
@@ -73,6 +75,7 @@ impl<Val> Term<Val> {
         }
     }
 
+    // Is this context simply a hole?
     pub fn is_hole(&self) -> bool {
         match self {
             &Hole(_) => true,
@@ -80,6 +83,7 @@ impl<Val> Term<Val> {
         }
     }
 
+    // Gives the source locations of all variables in a term or context
     pub fn vars(&self) -> Vec<Path> {
         fn recur<Val>(term: &Term<Val>, path: &mut Vec<usize>, vars: &mut Vec<Path>) {
             match term {
@@ -103,6 +107,7 @@ impl<Val> Term<Val> {
         vars
     }
 
+    // Gives the name and source location of each hole in a context
     pub fn holes(&self) -> HashMap<Name, Path> {
         fn recur<Val>(term: &Term<Val>, path: &mut Vec<usize>, holes: &mut HashMap<Name, Path>) {
             match term {
@@ -131,6 +136,7 @@ impl<Val> Term<Val> {
         holes
     }
 
+    // Gives the name and source location of each `as_refn` hole in a context
     pub fn hole_as_refns(&self) -> HashMap<Name, Path> {
         fn recur<Val>(term: &Term<Val>, path: &mut Vec<usize>, holes: &mut HashMap<Name, Path>) {
             match term {
@@ -157,6 +163,7 @@ impl<Val> Term<Val> {
     }
 }
 
+// A source location
 pub type Path = Vec<usize>;
 
 impl<'a, Val> Index<&'a Path> for Term<Val> where Val : fmt::Display {
@@ -170,6 +177,8 @@ impl<'a, Val> Index<&'a Path> for Term<Val> where Val : fmt::Display {
     }
 }
 
+// A desugaring rule that says to rewrite context `left` to context `right`.
+// (`holes` is cached info about the contexts' holes.)
 pub struct RewriteRule<Val> {
     pub left: Term<Val>,
     pub right: Term<Val>,

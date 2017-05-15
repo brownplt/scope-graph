@@ -4,25 +4,25 @@ language Do {
   (* Functions *)
   
   (Lambda param body) {
-    import 1;
-    import 2;
-    bind 1 in 2;
+    import param;
+    import body;
+    bind param in body;
   }
   (Param name params) {
-    import 1;
-    import 2;
-    export 1;
-    export 2;
+    import name;
+    import params;
+    export name;
+    export params;
   }
   (End) {}
   
   (Apply func args) {
-    import 1;
-    import 2;
+    import func;
+    import args;
   }
   (Arg arg args) {
-    import 1;
-    import 2;
+    import arg;
+    import args;
   }
 
 
@@ -30,77 +30,77 @@ language Do {
 
   (Void) {}
   (Begin expr rest) {
-    import 1;
-    import 2;
+    import expr;
+    import rest;
   }
 
 
   (* Set *)
   
   (Set var defn stmts) {
-    import 1;
-    import 2;
-    import 3;
-    export 3;
+    import var;
+    import defn;
+    import stmts;
+    export stmts;
   }
 
 
   (* Conditionals *)
 
   (If cond consq altern) {
-    import 1;
-    import 2;
-    import 3;
+    import cond;
+    import consq;
+    import altern;
   }
 
 
   (* TEMP *)
 
   (Let a b) {
-    import 1;
-    import 2;
-    bind 1 in 2;
+    import a;
+    import b;
+    bind a in b;
   }
 
   (LetBind a b c) {
-    import 1;
-    import 2;
-    import 3;
-    export 1;
-    export 3;
+    import a;
+    import b;
+    import c;
+    export a;
+    export c;
   }
 
   (Letstar a b) {
-    import 1;
-    import 2;
-    bind 1 in 2;
+    import a;
+    import b;
+    bind a in b;
   }
 
   (Letrec a b) {
-    import 1;
-    import 2;
-    bind 1 in 2;
+    import a;
+    import b;
+    bind a in b;
   }
 
   (LetstarBind var init binds) {
-    import 1;
-    import 2;
-    import 3;
-    bind 1 in 3;
-    export 1;
-    export 3;
+    import var;
+    import init;
+    import binds;
+    bind var in binds;
+    export var;
+    export binds;
   }
 
   (LetrecBind var init binds) {
-    import 1;
-    import 2;
-    import 3;
-    export 1;
-    export 3;
-    bind 1 in 3;
-    bind 3 in 1;
-    bind 1 in 2;
-    bind 3 in 2;
+    import var;
+    import init;
+    import binds;
+    export var;
+    export binds;
+    bind var in binds;
+    bind binds in var;
+    bind var in init;
+    bind binds in init;
   }
 
 
@@ -133,7 +133,7 @@ language Do {
          (Lambda vars
            (If test
              (Begin (Void) exprs)
-             (Begin commands (Apply $loop steps)))))
+             (Begin commands (Apply $loop steps)))) (End))
          (Apply $loop inits))
 
 (*

@@ -36,35 +36,35 @@ fn main() {
 fn timing_test() {
     let total_timer = SystemTime::now();
     let mut lang_1: Language<usize> =
-        parse_language(&SourceFile::open("src/examples/example_1.scope").unwrap());
+        parse_language(&SourceFile::open("src/examples/single_arm_let.scope").unwrap());
     let mut lang_2: Language<usize> =
-        parse_language(&SourceFile::open("src/examples/example_2.scope").unwrap());
-    let mut lang_4: Language<usize> =
+        parse_language(&SourceFile::open("src/examples/multi_arm_let.scope").unwrap());
+    let mut lang_3: Language<usize> =
         parse_language(&SourceFile::open("src/examples/list_comprehension.scope").unwrap());
-    let mut lang_5: Language<usize> =
+    let mut lang_4: Language<usize> =
         parse_language(&SourceFile::open("src/examples/pyret.scope").unwrap());
-    let mut lang_6: Language<usize> =
+    let mut lang_5: Language<usize> =
         parse_language(&SourceFile::open("src/examples/r5rs.scope").unwrap());
     let infer_timer = SystemTime::now();
     infer_scope(&mut lang_1);
     infer_scope(&mut lang_2);
+    infer_scope(&mut lang_3);
     infer_scope(&mut lang_4);
     infer_scope(&mut lang_5);
-    infer_scope(&mut lang_6);
     let total_time = total_timer.elapsed();
     let infer_time = infer_timer.elapsed();
 
-    println!("\n=============== Example 1 (Let) ================\n");
+    println!("\n=============== Example 1 (Single-arm let) =====\n");
     println!("{}", lang_1.surf_scope);
-    println!("\n=============== Example 2 (Let*) ===============\n");
+    println!("\n=============== Example 2 (Multi-arm let) ======\n");
     println!("{}", lang_2.surf_scope);
     println!("\n=============== Haskell List Comprehensions ====\n");
-    println!("{}", lang_4.surf_scope);
+    println!("{}", lang_3.surf_scope);
     println!("\n====================  Pyret  ===================\n");
-    println!("{}", lang_5.surf_scope);
+    println!("{}", lang_4.surf_scope);
     println!("\n===============  R5RS Scheme  ==================\n");
-    println!("{}", lang_6.surf_scope);
+    println!("{}", lang_5.surf_scope);
 
     println!("\nTotal time {:?}", total_time);
-    println!("Infer time {:?}", infer_time);
+    println!("Inference time {:?}", infer_time);
 }

@@ -44,36 +44,36 @@ mod tests {
     #[test]
     #[should_panic(expected = "The variable reference y is unbound in the right hand side of the rule:")]
     fn hygiene_check_unbound() {
-        load_lang("src/examples/test_hygiene_check_unbound.scope");
+        load_lang("src/tests/hygiene_check_unbound.scope");
     }
 
     #[test]
     #[should_panic(expected = "The variable reference as_refn$z is unbound in the right hand side of the rule:")]
     fn hole_as_refn_check_unbound() {
-        load_lang("src/examples/test_hole_as_refn_check_unbound.scope");
+        load_lang("src/tests/hole_as_refn_check_unbound.scope");
     }
 
     #[test]
     #[should_panic(expected = "")]
     fn check_disjoint() {
-        load_lang("src/examples/test_disjointness.scope");
+        load_lang("src/tests/disjointness.scope");
     }
 
     #[test]
     #[should_panic(expected = "")]
     fn check_disjoint_letrec() {
-        load_lang("src/examples/test_disjointness_letrec.scope");
+        load_lang("src/tests/disjointness_letrec.scope");
     }
 
     #[test]
     #[should_panic(expected = "Term `Lambda` constructed with the wrong number of children. Found 1 children, but expected 2 children.")]
     fn check_arity_error() {
-        load_lang("src/examples/test_arity_error.scope");
+        load_lang("src/tests/arity_error.scope");
     }
     
     #[test]
     fn binding() {
-        let lang = load_lang("src/examples/test_binding.scope");
+        let lang = load_lang("src/tests/binding.scope");
         let ref term1 = lang.rewrite_rules[2].right;
         let ref term2 = lang.rewrite_rules[3].right;
         assert!(has_binding(term1, &lang, (vec!(2, 1), vec!(1))));
@@ -84,7 +84,7 @@ mod tests {
     /// Example 1 from the paper (section 2.1: Single-arm Let)
     #[test]
     fn example_1() {
-        let lang = load_lang("src/examples/example_1.scope");
+        let lang = load_lang("src/examples/single_arm_let.scope");
 
         // (Let statement)
         let ref let_rule = lang.surf_scope.rules["Let"];
@@ -100,7 +100,7 @@ mod tests {
     /// Example 2 from the paper (section 2.2: Multi-arm Let*)
     #[test]
     fn example_2() {
-        let lang = load_lang("src/examples/example_2.scope");
+        let lang = load_lang("src/examples/multi_arm_let.scope");
 
         // (Let* statement)
         let ref let_rule = lang.surf_scope.rules["Let"];
