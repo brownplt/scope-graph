@@ -230,7 +230,7 @@ mod tests {
         // Boolean Guards
         // b, Q
         // 1  2
-        let ref rule = lang.surf_scope.rules["Guard"];
+        let ref rule = lang.surf_scope.rules["BooleanGuard"];
         let children = make_children(vec!("b", "Q"));
         assert_eq!(rule.iter().count(), 3);
         assert!(has_fact(rule, &children, "import b;"));
