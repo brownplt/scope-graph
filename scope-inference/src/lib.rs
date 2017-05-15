@@ -20,7 +20,7 @@
 //! ## Usage
 //! 
 //! Input files (extension `.scope`) contain sugar definitions and
-//! core language scoping rules. Scope inference then determines the
+//! scoping rules for the base language. Scope inference then determines the
 //! minimal set of scoping rules for the sugars such that desugaring
 //! preserves scope---or fails if there are no such scoping rules.
 //!
@@ -71,6 +71,11 @@
 //!   rule (Let a b c) => (Apply (Lambda a c) b)
 //! }
 //! ```
+//!
+//! Variable declarations begin with `@` (e.g. `@x`), and variable
+//! references begin with `$`. Global references begin with `global$`,
+//! and copying a declaration as a reference (as mentioned at the
+//! beginning of section 6 of the paper) is written as `as_refn$x`.
 //!
 //! The output is a set of scoping rules for the surface language
 //! (that is, for the sugars). They are shown in a nondeterministic
@@ -127,8 +132,8 @@
 //! ## Extra Features
 //! 
 //! The implementation has one feature mentioned but not discussed in the paper: when
-//! declaring a sugar, you can require that some of its variables be
-//! disjoint. Usually this isn't necessary, because it can be inferred,
+//! declaring a sugar, you can require that some of its variables have distinct names.
+//! Usually this isn't necessary, because it can be inferred,
 //! but it's needed for `letrec`. The syntax for this is, e.g.,
 //! ```text
 //!       sugar (LetrecBind var init binds) {
