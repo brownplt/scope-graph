@@ -75,7 +75,8 @@ impl ScopeRule {
     }
 
     pub fn iter(&self) -> Iter {
-        let pairs = self.order.facts();
+        let mut pairs = self.order.facts();
+        pairs.reverse();
         Iter{
             node: self.node.clone(),
             pairs: pairs

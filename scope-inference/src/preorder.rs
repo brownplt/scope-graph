@@ -202,7 +202,21 @@ impl Preorder {
     pub fn facts(&self) -> Vec<Lt> {
         let mut pairs = vec!();
         for x in 0..self.size {
-            for y in 0..self.size {
+            let y = 0;
+            let edge = (x, y);
+            if self[edge] && edge != (1, 0) { // Skip the always true fact (Exp < Imp).
+                pairs.push(Lt::from(edge));
+            }
+        }
+        for y in 0..self.size {
+            let x = 0;
+            let edge = (x, y);
+            if self[edge] && edge != (1, 0) { // Skip the always true fact (Exp < Imp).
+                pairs.push(Lt::from(edge));
+            }
+        }
+        for x in 1..self.size {
+            for y in 1..self.size {
                 let edge = (x, y);
                 if self[edge] && edge != (1, 0) { // Skip the always true fact (Exp < Imp).
                     pairs.push(Lt::from(edge));
