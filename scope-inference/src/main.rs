@@ -14,11 +14,11 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         panic!("\n\nUsage:
-    cargo run tests          : run and time test cases
+    cargo run timing_test    : run and time test cases
     cargo run stdin          : infer scope from language file in stdin)
     cargo run filename.scope : infer scope from file\n\n");
     }
-    if args[1] == "tests" {
+    if args[1] == "timing_test" {
         timing_test();
     } else if args[1] == "stdin" {
         let mut lang: Language<usize> = parse_language(&SourceFile::open_stdin()
@@ -27,7 +27,7 @@ fn main() {
         println!("{}", lang.surf_scope);
     } else {
         let mut lang: Language<usize> = parse_language(&SourceFile::open(&args[1])
-                                                       .expect("Invalid language file"));
+                                                       .expect("Could not open file"));
         infer_scope(&mut lang);
         println!("{}", lang.surf_scope);
     }
