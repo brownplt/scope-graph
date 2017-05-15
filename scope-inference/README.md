@@ -36,12 +36,18 @@ read the `Overview` below, or see section 4.3 of the paper.
   Run `cargo run src/examples/multi_arm_let.scope`.
 - Section 5.2: the example of constraint generation given at the
 end of this section is tested in `constraint_generation()` in `src/test.rs`.
+(This test is run when invoking `cargo test`.)
 - Section 6: the wallclock runtime is measured when running `cargo
-run tests`.
-- Section 6.1-6.3: these sugars are part of the Pyret and R5RS
-language test cases.
+run timing_test`.
+- Section 6.1: this `for` sugar is from the Pyret language.
+  Run `cargo run src/examples/pyret.scope`.
+- Section 6.2: all of these sugars are from Haskell list
+comprehensions.
+  Run `cargo run src/examples/list_comprehension.scope`.
+- Section 6.3: this `named-let` sugar is from R5RS scheme.
   Run `cargo run src/examples/r5rs.scope`
-  and `cargo run src/examples/pyret.scope`.
+  What the paper calls `Let` and `Bind` is called `NamedLet` and
+  `NamedLetBind` in the ouput.
 - Section 6.4: you can see scope inference fail on the `do` sugar
 by running `cargo run src/examples/do.scope`.
 
@@ -114,6 +120,10 @@ language Test {
   rule (Let a b c) => (Apply (Lambda a c) b)
 }
 ```
+
+The output is a set of scoping rules for the surface language
+(that is, for the sugars). They are shown in a nondeterministic
+order.
 
 ## Extra Features
 

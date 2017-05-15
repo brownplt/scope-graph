@@ -19,7 +19,11 @@ mod tests {
             .map(|c| { format!("{}", c) })
             .collect();
 
-        // Notation: ⊥ means R↓, ⊤ means R↑
+        // Notation:
+        // R↑ ⋖ R↓ means `re-export`
+        // R↑ ⋖ i  means `export i` (where i is an integer)
+        // i ⋖ R↓  means `import i` (where i is an integer)
+        // i ⋖ j   means `bind i in j` (where i and j are integers)
         let expected_constraints = [
             "Let: R↑ ⋖ R↓   iff   Apply: R↑ ⋖ R↓",
             "Let: R↑ ⋖ 1   iff   Apply: R↑ ⋖ 1 & Lambda: R↑ ⋖ 1",
@@ -269,12 +273,12 @@ mod tests {
         // child 2: binding list
         // child 4: for loop body
         let ref for_rule = lang.surf_scope.rules["For"];
-        let children = make_children(vec!("func", "bindings", "body"));
+        let children = make_children(vec!("func", "froms", "body"));
         assert_eq!(for_rule.iter().count(), 4);
         assert!(has_fact(for_rule, &children, "import func;"));
-        assert!(has_fact(for_rule, &children, "import bindings;"));
+        assert!(has_fact(for_rule, &children, "import froms;"));
         assert!(has_fact(for_rule, &children, "import body;"));
-        assert!(has_fact(for_rule, &children, "bind bindings in body;"));
+        assert!(has_fact(for_rule, &children, "bind froms in body;"));
 
         // (For loop binding)
         // child 1: parameter

@@ -71,9 +71,9 @@ language ListComprehension {
   (* https://www.haskell.org/onlinereport/exps.html#sect3.11 *)
 
   sugar (ListCompr expr qualifiers)
-  sugar (Guard expr qualifiers)
+  sugar (BooleanGuard expr qualifiers)
   sugar (Generator pattern expr qualifiers)
-  sugar (LocalBind binds qualifiers)
+  sugar (LocalBind decls qualifiers)
 
   (* [ e | True ] = [ e ]           *)
   (* [ e | q ]    = [ e | q, True ] *)
@@ -81,7 +81,7 @@ language ListComprehension {
     => (Cons e (Empty))
 
   (* [ e | b, Q ]  = if b then [ e | Q ] else [] *)
-  rule (ListCompr e (Guard b q))
+  rule (ListCompr e (BooleanGuard b q))
     => (If b (ListCompr e q) (Empty))
 
   (* [ e | p <- l, Q ]    = let ok p = [ e | Q ]  *)
