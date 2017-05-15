@@ -2,55 +2,6 @@
 
 This is the reference implementation for "Inferring Scope through Syntactic Sugar", ICFP'17.
 
-## Artifact Evaluation Instructions
-
-#### Step 1: Install Rust
-
-Follow the the `Installation` instructions below.
-
-#### Step 2: Run the tests
-
-In the scope-inference directory, run `cargo test`.
-They should all pass.
-(This runs `src/test.rs`.)
-
-This runs the test cases, but does not show the inferred scopes.
-To see the inferred scopes and total inference time,
-run `cargo run timing_test`. (This runs `timing_test()` in `src/main.rs`.)
-
-Both of these commands infer scope for five languages:
-
-- Single-arm let (example 1 from the paper)
-- Multi-arm let (example 2 from the paper)
-- Haskell List Comprehensions (section 6: evaluation)
-- Pyret's sugars that bind values (section 6: evaluation)
-- R5RS sugars that bind values (section 6: evaluation)
-
-Here are the claims from the paper that can be verified against
-this implementation. To make sense of these, you may want to
-read the `Overview` below, or see section 4.3 of the paper.
-
-- Section 2.1: single-arm let is the first test language.
-  Run `cargo run src/examples/single_arm_let.scope`.
-- Section 2.2: multi-arm let is the second test language.
-  Run `cargo run src/examples/multi_arm_let.scope`.
-- Section 5.2: the example of constraint generation given at the
-end of this section is tested in `constraint_generation()` in `src/test.rs`.
-(This test is run when invoking `cargo test`.)
-- Section 6: the wallclock runtime is measured when running `cargo
-run timing_test`.
-- Section 6.1: this `for` sugar is from the Pyret language.
-  Run `cargo run src/examples/pyret.scope`.
-- Section 6.2: all of these sugars are from Haskell list
-comprehensions.
-  Run `cargo run src/examples/list_comprehension.scope`.
-- Section 6.3: this `named-let` sugar is from R5RS scheme.
-  Run `cargo run src/examples/r5rs.scope`
-  What the paper calls `Let` and `Bind` is called `NamedLet` and
-  `NamedLetBind` in the ouput.
-- Section 6.4: you can see scope inference fail on the `do` sugar
-by running `cargo run src/examples/do.scope`.
-
 ## Installation
 
 To install Rust, run:
@@ -124,6 +75,54 @@ language Test {
 The output is a set of scoping rules for the surface language
 (that is, for the sugars). They are shown in a nondeterministic
 order.
+
+## Artifact Evaluation Instructions
+
+#### Step 1: Install Rust
+
+Follow the the `Installation` instructions above.
+
+#### Step 2: Run the tests
+
+In the scope-inference directory, run `cargo test`.
+They should all pass.
+(This runs `src/test.rs`.)
+
+This runs the test cases, but does not show the inferred scopes.
+To see the inferred scopes and total inference time,
+run `cargo run timing_test`. (This runs `timing_test()` in `src/main.rs`.)
+
+Both of these commands infer scope for five languages:
+
+- Single-arm let (example 1 from the paper)
+- Multi-arm let (example 2 from the paper)
+- Haskell List Comprehensions (section 6: evaluation)
+- Pyret's sugars that bind values (section 6: evaluation)
+- R5RS sugars that bind values (section 6: evaluation)
+
+Here are the claims from the paper that can be verified against
+this implementation.
+
+- Section 2.1: single-arm let is the first test language.
+  Run `cargo run src/examples/single_arm_let.scope`.
+- Section 2.2: multi-arm let is the second test language.
+  Run `cargo run src/examples/multi_arm_let.scope`.
+- Section 5.2: the example of constraint generation given at the
+end of this section is tested in `constraint_generation()` in `src/test.rs`.
+(This test is run when invoking `cargo test`.)
+- Section 6: the wallclock runtime is measured when running `cargo
+run timing_test`.
+- Section 6.1: this `for` sugar is from the Pyret language.
+  Run `cargo run src/examples/pyret.scope`.
+- Section 6.2: all of these sugars are from Haskell list
+comprehensions.
+  Run `cargo run src/examples/list_comprehension.scope`.
+- Section 6.3: this `named-let` sugar is from R5RS scheme.
+  Run `cargo run src/examples/r5rs.scope`
+  What the paper calls `Let` and `Bind` is called `NamedLet` and
+  `NamedLetBind` in the ouput.
+- Section 6.4: you can see scope inference fail on the `do` sugar
+by running `cargo run src/examples/do.scope`.
 
 ## Extra Features
 
