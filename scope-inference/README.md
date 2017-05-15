@@ -4,15 +4,11 @@ This is the reference implementation for "Inferring Scope through Syntactic Suga
 
 ## Installation
 
-To install Rust, run:
-```curl -sSf https://static.rust-lang.org/rustup.sh | sh```
+To install Rust, follow the
+[official Rust installation instructions](https://www.rust-lang.org/en-US/install.html).
 
 The installation script may suggest that you update your PATH
 environment variable; do as suggested.
-
-If you have any troubles, or wish to install Rust using a
-different method, see the official
-[Rust installation instructions](https://www.rust-lang.org/en-US/install.html).
 
 This has been tested on Rust 1.9 and 1.17, though later versions
 should work as well.
@@ -35,12 +31,13 @@ found in `src/examples/`.
 
 ## Overview
 
-The language definition files end in ".scope". Examples can be found in `src/examples/`.
+Language definition files end in ".scope". Examples can be found in `src/examples/`.
 
-Each language consists of a list of core scoping constructs, which have arities and scoping rules,
+Each language consists of a list of base language constructs,
+which have arities and scoping rules,
 followed by a list of surface constructs (i.e. sugars),
 followed by a list of desugaring rules of the form `rule Term1 => Term2`.
-The core langauge scoping rules take the form:
+The scoping rules take the form:
 
 - `import i`: Provide lexical scope to child i.
               (You almost certainly want 'import i' for each 'i'.)
@@ -71,6 +68,8 @@ language Test {
   rule (Let a b c) => (Apply (Lambda a c) b)
 }
 ```
+
+The statements (e.g. `import`, `bind`) in each rule are UNORDERED.
 
 Variable declarations begin with `@` (e.g. `@x`), and variable
 references begin with `$`. Global references begin with `global$`,
@@ -115,10 +114,11 @@ this implementation.
 - Section 5.2: the example of constraint generation given at the
 end of this section is tested in `constraint_generation()` in `src/test.rs`.
 (This test is run when invoking `cargo test`.)
-- Section 6: the wallclock runtime is measured when running `cargo
-run timing_test`.
+- Section 6: the wallclock runtime is measured when running
+`cargo run timing_test`.
 - Section 6.1: this `for` sugar is from the Pyret language.
   Run `cargo run src/examples/pyret.scope`.
+  (The output will include other sugars in addition to `for`.)
 - Section 6.2: all of these sugars are from Haskell list
 comprehensions.
   Run `cargo run src/examples/list_comprehension.scope`.
@@ -126,6 +126,7 @@ comprehensions.
   Run `cargo run src/examples/r5rs.scope`
   What the paper calls `Let` and `Bind` is called `NamedLet` and
   `NamedLetBind` in the ouput.
+  (The output will include other sugars in addition to these.)
 - Section 6.4: you can see scope inference fail on the `do` sugar
 by running `cargo run src/examples/do.scope`.
 
