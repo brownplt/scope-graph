@@ -1,0 +1,106 @@
+language R5RS {
+
+
+  (* Functions *)
+  
+  (Lambda param body) {
+    import param;
+    import body;
+    bind param in body;
+  }
+  (Param name params) {
+    import name;
+    import params;
+    export name;
+    export params;
+  }
+  (End) {}
+  
+  (Apply func args) {
+    import func;
+    import args;
+  }
+  (Arg arg args) {
+    import arg;
+    import args;
+  }
+
+
+  (* Multiple bodies *)
+
+  (Void) {}
+  (Begin expr rest) {
+    import expr;
+    import rest;
+  }
+
+
+  (* Set *)
+  
+  (Set var defn stmts) {
+    import var;
+    import defn;
+    import stmts;
+    export stmts;
+  }
+
+
+  (* Conditionals *)
+
+  (If cond consq altern) {
+    import cond;
+    import consq;
+    import altern;
+  }
+
+
+  (* Sugars *)
+
+  sugar (Let binds body)
+  sugar (LetBind var init binds)
+
+  sugar (Letstar binds body)
+  sugar (LetstarBind var init binds)
+
+  sugar (Letrec binds body)
+  sugar (LetrecBind var init binds) {
+    disjoint import var;
+    disjoint bind var in binds;
+  }
+
+  sugar (NamedLet proc_id binds body)
+  sugar (NamedLetBind arg_id init_expr binds)
+
+
+  (* Regular Let *)
+
+  rule (Let (LetBind x defn ...) body)
+    => (Apply (Lambda (Param x ...) body) (Arg defn ...))
+
+
+  (* Letstar *)
+
+  rule (Letstar (End) body)
+    => (Let (End) body)
+
+  rule (Letstar (LetstarBind id init binds) body)
+    => (Let (LetBind id init (end))
+         (Letstar binds body))
+
+
+  (* Letrec *)
+
+  rule (Letrec (LetrecBind var init ...) body)
+    => (Letstar (LetstarBind var (Void) ...)
+         (Letstar (LetstarBind @x init ...)
+           (Begin (Set as_refn$var $x ...) body)))
+
+
+  (* Named Let *)
+
+  rule (NamedLet proc_id (NamedLetBind arg_id init_expr ...) body)
+    => (Letrec
+         (LetrecBind proc_id (Lambda (Param arg_id ...) body) (End))
+         (Apply as_refn$proc_id (Arg init_expr ...)))
+
+}

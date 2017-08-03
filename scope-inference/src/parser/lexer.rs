@@ -14,6 +14,7 @@ pub enum Token {
     Semicolon,
     LBrace,
     RBrace,
+    Ellipsis,
     // Scoping Rules
     Sugar,
     Colon,
@@ -42,11 +43,12 @@ fn make_matcher(token: Token, regex: &str) -> (Token, Regex) {
 }
 
 lazy_static! {
-    static ref MATCHERS: [(Token, Regex); 21] = [
+    static ref MATCHERS: [(Token, Regex); 22] = [
         make_matcher(Language, "language\\b"),
         make_matcher(Semicolon, ";"),
         make_matcher(LBrace  , "\\{"),
         make_matcher(RBrace  , "\\}"),
+        make_matcher(Ellipsis, "\\.\\.\\."),
         make_matcher(Sugar   , "sugar"),
         make_matcher(Colon   , ":"),
         make_matcher(LParen  , "\\("),
@@ -75,6 +77,7 @@ impl fmt::Display for Token {
             Semicolon => write!(f, ";"),
             LBrace   => write!(f, "{{"),
             RBrace   => write!(f, "}}"),
+            Ellipsis => write!(f, "..."),
             Sugar    => write!(f, "sugar"),
             Colon    => write!(f, ":"),
             LParen   => write!(f, "("),

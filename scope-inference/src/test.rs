@@ -74,6 +74,12 @@ mod tests {
     fn check_arity_error() {
         load_lang("src/tests/arity_error.scope");
     }
+
+    #[test]
+    #[should_panic(expected = "Hole `name` used both under 1 ellipses and under 0 ellipses. Holes must be used at consistent ellipsis depth.")]
+    fn check_ellipses_depth_error() {
+        load_lang("src/tests/ellipses_depth_test.scope");
+    }
     
     #[test]
     fn binding() {
@@ -125,12 +131,22 @@ mod tests {
         assert!(has_fact(bind_rule, &children, "export name;"));
         assert!(has_fact(bind_rule, &children, "export body;"));
     }
-
+    
     #[test]
     fn example_r5rs() {
+        let lang = load_lang("src/examples/r5rs.scope");
+        run_r5rs_tests(lang);
+    }
+
+    #[test]
+    fn example_r5rs_ellipses() {
+        let lang = load_lang("src/examples/r5rs_ellipses.scope");
+        run_r5rs_tests(lang);
+    }
+
+    fn run_r5rs_tests(lang: Language<usize>) {
         // See R5RS, section 7.3 "derived expression types"
         // http://www.schemers.org/Documents/Standards/R5RS/HTML/
-        let lang = load_lang("src/examples/r5rs.scope");
 
         // (Let*)
         let ref rule = lang.surf_scope.rules["Letstar"];
@@ -263,11 +279,20 @@ mod tests {
         assert!(has_fact(rule, &children, "export Q;"));
     }
 
-    /// The Pyret examples from the paper (section 6)
     #[test]
     fn example_pyret() {
         let lang = load_lang("src/examples/pyret.scope");
+        run_pyret_tests(lang);
+    }
 
+    #[test]
+    fn example_pyret_ellipses() {
+        let lang = load_lang("src/examples/pyret_ellipses.scope");
+        run_pyret_tests(lang);
+    }
+
+    /// The Pyret examples from the paper (section 6)
+    fn run_pyret_tests(lang: Language<usize>) {
         // (For loop)
         // child 1: iterating function
         // child 2: binding list

@@ -307,11 +307,12 @@ fn check_scope<Val>(scope: &ScopeRules,
 }
 
 pub fn infer_scope<Val>(language: &mut Language<Val>)
-    where Val : fmt::Display
+    where Val : fmt::Display + Clone
 {
     let mut constraints = vec!();
     for rule in language.rewrite_rules.iter() {
-        for constraint in gen_constrs(rule).into_iter() {
+        let rule = rule.expand(); // expand ellipses
+        for constraint in gen_constrs(&rule).into_iter() {
             constraints.push(constraint.clone());
         }
     }

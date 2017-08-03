@@ -1,0 +1,21 @@
+(* Should fail! *)
+
+language Test {
+
+  (Lambda param body) {
+    import param;
+    import body;
+    bind param in body;
+  }
+  (Param name params) {
+    import name;
+    import params;
+    export name;
+    export params;
+  }
+  (End) {}
+
+  rule (Lambda (Param name ...) body)
+    => (Lambda name body)
+
+}

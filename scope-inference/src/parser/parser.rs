@@ -67,6 +67,11 @@ impl<'s> Parser<'s> {
         }
     }
 
+    fn parse_ellipsis<Val>(&mut self) -> Result<Term<Val>, ()> {
+        try!(self.parse_token(Token::Ellipsis));
+        Ok(Term::Ellipsis)
+    }
+
     fn parse_hole<Val>(&mut self) -> Result<Term<Val>, ()> {
         let lex = try!(self.parse_token(Token::Name));
         Ok(Term::Hole(format!("{}", lex.span)))
@@ -126,6 +131,7 @@ impl<'s> Parser<'s> {
 
     pub fn parse_term<Val>(&mut self) -> Result<Term<Val>, ()> {
         Err(())
+            .or_else(|_| self.parse_ellipsis())
             .or_else(|_| self.parse_hole())
             .or_else(|_| self.parse_hole_to_refn())
             .or_else(|_| self.parse_stx())

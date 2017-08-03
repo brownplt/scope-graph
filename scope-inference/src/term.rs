@@ -30,6 +30,7 @@ impl Var {
 
 
 // Represents both terms (described in section 3.1) and contexts (section 5.1)
+#[derive(Clone)]
 pub enum Term<Val> {
     Decl(Var),
     Refn(Var),
@@ -37,7 +38,8 @@ pub enum Term<Val> {
     Value(Val),
     Stx(Node, Vec<Term<Val>>),
     Hole(Name),
-    HoleToRefn(Name)
+    HoleToRefn(Name),
+    Ellipsis
 }
 
 impl<Val> fmt::Display for Term<Val> where Val : fmt::Display {
@@ -56,7 +58,8 @@ impl<Val> fmt::Display for Term<Val> where Val : fmt::Display {
                 write!(f, ")")
             }
             &Hole(ref hole) => write!(f, "{}", hole),
-            &HoleToRefn(ref hole) => write!(f, "as_refn${}", hole)
+            &HoleToRefn(ref hole) => write!(f, "as_refn${}", hole),
+            &Ellipsis => write!(f, "...")
         }
     }
 }
@@ -93,6 +96,7 @@ impl<Val> Term<Val> {
                 &Global(_) => (), // Does not partipate in hygiene (cannot be bound by a decl)
                 &HoleToRefn(_) => (),
                 &Value(_)  => (),
+                &Ellipsis  => (),
                 &Stx(_, ref subterms) => {
                     for (i, subterm) in subterms.iter().enumerate() {
                         path.push(i + 1);
@@ -109,16 +113,29 @@ impl<Val> Term<Val> {
 
     // Gives the name and source location of each hole in a context
     pub fn holes(&self) -> HashMap<Name, Path> {
-        fn recur<Val>(term: &Term<Val>, path: &mut Vec<usize>, holes: &mut HashMap<Name, Path>) {
+        self.holes_info().into_iter().map(|(hole, info)| (hole, info.0)).collect()
+    }
+    
+    // Gives the name and source location and ellipses depth of each hole in a context
+    fn holes_info(&self) -> HashMap<Name, (Path, usize)> {
+        fn recur<Val>(term: &Term<Val>,
+                      path: &mut Vec<usize>,
+                      depth: usize,
+                      holes: &mut HashMap<Name, (Path, usize)>) {
             match term {
                 &Decl(_)  => (),
                 &Refn(_)  => (),
                 &Global(_)=> (),
                 &Value(_) => (),
+                &Ellipsis => (),
                 &Stx(_, ref subterms) => {
+                    let depth = match subterms.last() {
+                        Some(&Ellipsis) => depth + 1,
+                        _               => depth
+                    };
                     for (i, subterm) in subterms.iter().enumerate() {
                         path.push(i + 1);
-                        recur(subterm, path, holes);
+                        recur(subterm, path, depth, holes);
                         path.pop();
                     }
                 }
@@ -127,12 +144,12 @@ impl<Val> Term<Val> {
                     if holes.contains_key(hole) {
                         panic!("Rewrite rule contains duplicate hole: {}", hole);
                     }
-                    holes.insert(hole.clone(), path.clone());
+                    holes.insert(hole.clone(), (path.clone(), depth));
                 }
             }
         }
         let mut holes = HashMap::new();
-        recur(self, &mut vec!(), &mut holes);
+        recur(self, &mut vec!(), 0, &mut holes);
         holes
     }
 
@@ -145,6 +162,7 @@ impl<Val> Term<Val> {
                 &Global(_)=> (),
                 &Value(_) => (),
                 &Hole(_)  => (),
+                &Ellipsis => (),
                 &Stx(_, ref subterms) => {
                     for (i, subterm) in subterms.iter().enumerate() {
                         path.push(i + 1);
@@ -160,6 +178,43 @@ impl<Val> Term<Val> {
         let mut holes = HashMap::new();
         recur(self, &mut vec!(), &mut holes);
         holes
+    }
+
+    pub fn expand(&self) -> Term<Val> where Val : Clone {
+        match self {
+            &Stx(ref node, ref subterms) => {
+                Stx(node.clone(),
+                    subterms.iter().map(|subterm| {
+                        match subterm {
+                            &Ellipsis => {
+                                self.ellipsis_copy()
+                            },
+                            _ => subterm.expand()
+                        }
+                    }).collect())
+            }
+            _ => self.clone()
+        }
+    }
+
+    fn ellipsis_copy(&self) -> Term<Val> where Val : Clone {
+        match self {
+            &Hole(ref hole) =>
+                Hole(hole.to_string() + "*"),
+            &HoleToRefn(ref hole) =>
+                HoleToRefn(hole.to_string() + "*"),
+            &Ellipsis => Stx("End".to_string(), vec!()),
+            &Stx(ref node, ref subterms) => {
+                Stx(node.clone(),
+                    subterms.iter().map(|subterm| {
+                        subterm.ellipsis_copy()
+                    }).collect())
+            }
+            &Decl(_)  => self.clone(),
+            &Refn(_)  => self.clone(),
+            &Global(_)=> self.clone(),
+            &Value(_) => self.clone(),
+        }
     }
 }
 
@@ -193,17 +248,20 @@ impl<Val> RewriteRule<Val> {
         if left.is_hole() || right.is_hole() {
             panic!("The RHS of a rewrite rule cannot be just a hole.");
         }
-        let left_holes = left.holes();
-        let mut right_holes = right.holes();
+        let left_holes = left.holes_info();
+        let mut right_holes = right.holes_info();
         for hole in right_holes.keys() {
             if !left_holes.contains_key(hole) {
                 panic!("Rewrite rule has undefined hole: {}", hole);
             }
         }
         let mut holes = HashMap::new();
-        for (hole, lpath) in left_holes.into_iter() {
+        for (hole, (lpath, ldepth)) in left_holes.into_iter() {
             match right_holes.remove(&hole) {
-                Some(rpath) => {
+                Some((rpath, rdepth)) => {
+                    if ldepth != rdepth {
+                        panic!("Hole `{}` used both under {} ellipses and under {} ellipses. Holes must be used at consistent ellipsis depth.", hole, ldepth, rdepth);
+                    }
                     holes.insert(hole, (lpath, rpath));
                 }
                 None => {}
@@ -215,6 +273,10 @@ impl<Val> RewriteRule<Val> {
             right: right,
             holes: holes
         }
+    }
+
+    pub fn expand(&self) -> RewriteRule<Val> where Val : Clone + fmt::Display {
+        RewriteRule::new(self.left.expand(), self.right.expand())
     }
 }
 

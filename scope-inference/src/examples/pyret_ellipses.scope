@@ -1,0 +1,170 @@
+language Pyret {
+
+  (Program body) {} (* Marks the toplevel of the program *)
+
+  (Lambda params body) {
+    import params;
+    import body;
+    bind params in body;
+  }
+
+  (Apply func arg) {
+    import func;
+    import arg;
+  }
+
+  (Arg arg args) {
+    import arg;
+    import args;
+  }
+
+  (End) {}
+
+  (Param param params) {
+    import param;
+    import params;
+    export param;
+    export params;
+  }
+
+  (Letrec binds body) {
+    import binds;
+    import body;
+    export binds;
+    export body;
+    bind binds in body;
+  }
+
+  (LetrecBind name value binds) {
+    import name;
+    import value;
+    import binds;
+    export binds;
+    bind name in binds;
+    bind binds in value;
+  }
+
+  (LetBind name value binds) {
+    import name;
+    import value;
+    import binds;
+    export binds;
+    bind name in binds;
+  }
+
+  (LetExpr bindings body) {
+    import bindings;
+    import body;
+    bind bindings in body;
+  }
+
+  (Newtype name namet rest) {
+    import name;
+    import namet;
+    import rest;
+    export name;
+    export namet;
+  }
+
+
+
+  (* Data specific scoping rules *)
+
+  (DataExpr name namet params mixins variants shared) {
+    import name;
+    import namet;
+    import params;
+    import mixins;
+    import variants;
+    import shared;
+    bind name in params;
+    bind name in variants;
+    bind name in shared;
+    bind params in variants;
+    bind params in shared;
+    export name;
+    export namet;
+    export variants;
+    export shared;
+  }
+
+  (Variant name members with_members) {
+    import name;
+    import members;
+    import with_members;
+    bind name in members;
+  }
+
+  (VariantMember member_type name) {
+    import name;
+    export name;
+  }
+
+  (VariantMemberTypeNormal) {}
+  (VariantMemberTypeMutable) {}
+
+  (DataField name value) {
+    import name;
+    import value;
+    export name;
+  }
+
+  (MutableField name value) {
+    import name;
+    import value;
+    export name;
+  }
+
+  (MethodField name params args body) {
+    import name;
+    import params;
+    import args;
+    import body;
+    bind name in params;
+    bind name in args;
+    bind name in body;
+    bind params in body;
+    bind args in body;
+    export name; 
+  }
+
+  
+
+  (* Sugars *)
+
+  sugar (For func froms body)
+  sugar (From param arg froms)
+  sugar (Fun name params body rest_stmts)
+  sugar (Let name value rest_stmts)
+  sugar (Data name params mixins variants shared)
+
+
+  (* For loops *)
+
+  rule (Data name params mixins variants shared)
+    => (DataExpr name @a params mixins variants shared)
+
+  rule (For iter (From param arg ...) body)
+    => (Apply iter (Arg (Lambda (Param param ...) body) (Arg arg ...)))
+
+
+  (* Functions *)
+
+  rule (Fun name params body rest_stmts)
+    => (Letrec (LetrecBind name (Lambda params body) (End)) rest_stmts)
+
+
+  (* Let statements *)
+
+  rule (LetExpr binds (Let name value rest_stmts))
+    => (LetExpr (AppendBind name value binds) rest_stmts)
+
+  rule (Let name value rest_stmts)
+    => (LetExpr (LetBind name value (End)) rest_stmts)
+
+  rule (AppendBind name value (End))
+    => (LetBind name value (End))
+
+  rule (AppendBind _name _value (LetBind name value binds))
+    => (LetBind name value (AppendBind _name _value binds))
+}

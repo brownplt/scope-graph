@@ -132,7 +132,12 @@ by running `cargo run src/examples/do.scope`.
 
 ## Extra Features
 
-The implementation has one feature mentioned but not discussed in the paper: when
+The implementation now has experimental support for ellipses in
+desugaring rules. To use them, put `...` as the last child of a
+node in a desugaring rule. Examples can be found in
+"src/examples/pyret_ellipses.scope" and "src/examples/r5rs_ellipses.scope".
+
+The implementation has one more feature mentioned but not discussed in the paper: when
 declaring a sugar, you can require that some of its variables have distinct names.
 Usually this isn't necessary, because it can be inferred,
 but it's needed for `letrec`. The syntax for this is, e.g.,
