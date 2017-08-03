@@ -10,3 +10,4 @@ lazy_static = "0.2"
 [[bin]]
 name = "lib"
 doc = false
+path = "src/main.rs"
